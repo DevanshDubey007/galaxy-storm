@@ -155,6 +155,14 @@
                 gain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
                 osc.start(now); osc.stop(now + 0.06);
                 break;
+            case 'beam':
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(800, now);
+                osc.frequency.exponentialRampToValueAtTime(600, now + 0.1);
+                gain.gain.setValueAtTime(0.08, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+                osc.start(now); osc.stop(now + 0.1);
+                break;
             case 'explosion': {
                 osc.type = 'sawtooth';
                 osc.frequency.setValueAtTime(200, now);
@@ -505,13 +513,18 @@
     function playerShoot() {
         if (player.shootCooldown > 0) return;
         player.shootCooldown = player.shootRate;
+
+        if (player.weaponType === 'beam') { 
+            playSound('beam');
+            player.beamActive = true; 
+            return; 
+        }
+
         if (frameCount % 3 === 0) playSound('shoot');
 
         const bx = player.x;
         const by = player.y - player.height / 2;
         const spd = -12;
-
-        if (player.weaponType === 'beam') { player.beamActive = true; return; }
 
         switch (player.powerLevel) {
             case 0:
