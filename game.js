@@ -613,13 +613,13 @@
         if (player.speedBoost > 0) player.speedBoost--;
 
         player.engineFlame += 0.25;
-        // Engine particles - more intense
+        // Engine particles - pink/magenta/purple to match thruster flames
         if (frameCount % 2 === 0) {
             for (let side = -1; side <= 1; side += 2) {
-                particles.push({ x: player.x + side * 12, y: player.y + player.height / 2 - 8, vx: (Math.random() - 0.5) * 1.5 + side * 0.3, vy: 3 + Math.random() * 3, life: 12 + Math.random() * 10, maxLife: 22, color: Math.random() > 0.3 ? C.cyan : (Math.random() > 0.5 ? C.gold : C.red), size: 2 + Math.random() * 2.5 });
+                particles.push({ x: player.x + side * 15, y: player.y + player.height / 2 - 4, vx: (Math.random() - 0.5) * 1.5 + side * 0.2, vy: 3 + Math.random() * 4, life: 12 + Math.random() * 10, maxLife: 22, color: [C.magenta, C.hotPink, C.pinkBright, C.purpleBright, C.white][Math.floor(Math.random() * 5)], size: 2 + Math.random() * 2.5 });
             }
-            // Center flame
-            particles.push({ x: player.x, y: player.y + player.height / 2 - 5, vx: (Math.random() - 0.5) * 0.5, vy: 4 + Math.random() * 3, life: 15 + Math.random() * 8, maxLife: 23, color: C.cyanBright, size: 2.5 + Math.random() * 2 });
+            // Center flame particle
+            particles.push({ x: player.x, y: player.y + player.height / 2 - 2, vx: (Math.random() - 0.5) * 0.5, vy: 4 + Math.random() * 3, life: 10 + Math.random() * 8, maxLife: 18, color: Math.random() > 0.5 ? C.white : C.pinkBright, size: 2 + Math.random() * 2 });
         }
     }
 
@@ -908,217 +908,538 @@
         ctx.restore();
     }
 
-    // ── Player Ship Drawing (ornate mech-fighter like concept art) ──
+    // ═══════════════════════════════════════════════════════════
+    // PLAYER SHIP - Mech-Dragon 32-bit Pixel Art Style
+    // Layered armor, gold trim, energy cells, thruster flames
+    // ═══════════════════════════════════════════════════════════
     function drawPlayer() {
         if (player.invincible && Math.floor(globalTime * 0.3) % 2 === 0) return;
         ctx.save();
         ctx.translate(player.x, player.y);
 
-        // Shield visual
+        const t = globalTime;
+        const pulse = Math.sin(t * 0.08);
+        const fastPulse = Math.sin(t * 0.2);
+        const flicker = Math.sin(player.engineFlame * 4);
+
+        // ── Shield Visual ──
         if (player.shield > 0) {
-            ctx.globalAlpha = 0.25 + Math.sin(globalTime * 0.12) * 0.1;
-            const shieldGrad = ctx.createRadialGradient(0, 0, 20, 0, 0, 38);
-            shieldGrad.addColorStop(0, 'transparent');
-            shieldGrad.addColorStop(0.7, 'rgba(255, 215, 0, 0.15)');
-            shieldGrad.addColorStop(1, 'rgba(255, 215, 0, 0.3)');
-            ctx.fillStyle = shieldGrad;
+            ctx.globalAlpha = 0.2 + Math.sin(t * 0.12) * 0.1;
+            const shGr = ctx.createRadialGradient(0, 0, 22, 0, 0, 44);
+            shGr.addColorStop(0, 'transparent');
+            shGr.addColorStop(0.6, 'rgba(255, 215, 0, 0.1)');
+            shGr.addColorStop(1, 'rgba(255, 215, 0, 0.25)');
+            ctx.fillStyle = shGr;
             ctx.beginPath();
-            ctx.arc(0, 0, 38, 0, Math.PI * 2);
+            ctx.arc(0, 0, 44, 0, Math.PI * 2);
             ctx.fill();
             ctx.strokeStyle = C.gold;
             ctx.shadowColor = C.gold;
-            ctx.shadowBlur = 12;
+            ctx.shadowBlur = 14;
             ctx.lineWidth = 2;
             ctx.stroke();
             ctx.shadowBlur = 0;
             ctx.globalAlpha = 1;
         }
 
-        // Speed boost aura
+        // ── Speed Boost Aura ──
         if (player.speedBoost > 0) {
-            ctx.globalAlpha = 0.12;
+            ctx.globalAlpha = 0.1;
             ctx.fillStyle = C.green;
             ctx.shadowColor = C.green;
-            ctx.shadowBlur = 20;
+            ctx.shadowBlur = 22;
             ctx.beginPath();
-            ctx.arc(0, 0, 30 + Math.sin(globalTime * 0.2) * 5, 0, Math.PI * 2);
+            ctx.arc(0, 0, 35 + fastPulse * 5, 0, Math.PI * 2);
             ctx.fill();
             ctx.shadowBlur = 0;
             ctx.globalAlpha = 1;
         }
 
-        // ─── Engine Exhaust (bright cyan beams, like concept art) ───
-        const flicker = Math.sin(player.engineFlame * 4);
+        // ════════════════════════════════════════
+        // THRUSTER FLAMES (pink → purple → white)
+        // ════════════════════════════════════════
         for (let side = -1; side <= 1; side += 2) {
-            const exX = side * 13;
-            const flameH = 22 + flicker * 6;
-            const flameGrad = ctx.createLinearGradient(exX, 26, exX, 26 + flameH);
-            flameGrad.addColorStop(0, C.cyanBright);
-            flameGrad.addColorStop(0.3, C.cyan);
-            flameGrad.addColorStop(0.6, 'rgba(0, 100, 255, 0.6)');
-            flameGrad.addColorStop(1, 'rgba(0, 50, 255, 0)');
-            ctx.fillStyle = flameGrad;
-            ctx.shadowColor = C.cyan;
-            ctx.shadowBlur = 15;
+            const thrX = side * 15;
+            const thrY = 30;
+            const flameLen = 30 + flicker * 10 + Math.random() * 4;
+
+            // Outer flame (pink/magenta)
+            const outerGr = ctx.createLinearGradient(thrX, thrY, thrX, thrY + flameLen);
+            outerGr.addColorStop(0, C.magenta);
+            outerGr.addColorStop(0.35, C.hotPink);
+            outerGr.addColorStop(0.7, 'rgba(191, 0, 255, 0.5)');
+            outerGr.addColorStop(1, 'rgba(100, 0, 200, 0)');
+            ctx.fillStyle = outerGr;
+            ctx.shadowColor = C.magenta;
+            ctx.shadowBlur = 14;
             ctx.beginPath();
-            ctx.moveTo(exX - 5, 26);
-            ctx.lineTo(exX, 26 + flameH);
-            ctx.lineTo(exX + 5, 26);
+            ctx.moveTo(thrX - 7, thrY);
+            ctx.quadraticCurveTo(thrX - 4, thrY + flameLen * 0.6, thrX, thrY + flameLen);
+            ctx.quadraticCurveTo(thrX + 4, thrY + flameLen * 0.6, thrX + 7, thrY);
             ctx.closePath();
             ctx.fill();
+
+            // Inner flame (white core)
+            const innerGr = ctx.createLinearGradient(thrX, thrY, thrX, thrY + flameLen * 0.7);
+            innerGr.addColorStop(0, C.white);
+            innerGr.addColorStop(0.3, C.pinkBright);
+            innerGr.addColorStop(0.6, C.purpleBright);
+            innerGr.addColorStop(1, 'transparent');
+            ctx.fillStyle = innerGr;
+            ctx.shadowBlur = 8;
+            ctx.shadowColor = C.white;
+            ctx.beginPath();
+            ctx.moveTo(thrX - 3, thrY);
+            ctx.quadraticCurveTo(thrX - 1.5, thrY + flameLen * 0.4, thrX, thrY + flameLen * 0.7);
+            ctx.quadraticCurveTo(thrX + 1.5, thrY + flameLen * 0.4, thrX + 3, thrY);
+            ctx.closePath();
+            ctx.fill();
+            ctx.shadowBlur = 0;
         }
-        // Center engine
-        const cFlameH = 28 + flicker * 8;
-        const cFlameGrad = ctx.createLinearGradient(0, 24, 0, 24 + cFlameH);
-        cFlameGrad.addColorStop(0, C.white);
-        cFlameGrad.addColorStop(0.2, C.cyanBright);
-        cFlameGrad.addColorStop(0.5, C.cyan);
-        cFlameGrad.addColorStop(1, 'rgba(0, 100, 255, 0)');
-        ctx.fillStyle = cFlameGrad;
-        ctx.shadowColor = C.cyan;
-        ctx.shadowBlur = 20;
+
+        // Center thruster (smaller)
+        const cLen = 18 + flicker * 5;
+        const cGr = ctx.createLinearGradient(0, 28, 0, 28 + cLen);
+        cGr.addColorStop(0, C.white);
+        cGr.addColorStop(0.3, C.magenta);
+        cGr.addColorStop(0.7, C.purple);
+        cGr.addColorStop(1, 'transparent');
+        ctx.fillStyle = cGr;
+        ctx.shadowColor = C.magenta;
+        ctx.shadowBlur = 10;
         ctx.beginPath();
-        ctx.moveTo(-4, 24);
-        ctx.lineTo(0, 24 + cFlameH);
-        ctx.lineTo(4, 24);
+        ctx.moveTo(-3, 28);
+        ctx.lineTo(0, 28 + cLen);
+        ctx.lineTo(3, 28);
         ctx.closePath();
         ctx.fill();
         ctx.shadowBlur = 0;
 
-        // ─── Wing Cannons (wide, boxy, like concept art) ───
+        // ════════════════════════════════════════
+        // ENGINE BLOCKS (magenta + cyan cores)
+        // ════════════════════════════════════════
         for (let side = -1; side <= 1; side += 2) {
-            const wx = side * 22;
-            // Cannon body
-            ctx.fillStyle = '#555';
-            ctx.fillRect(wx - 5, -5, 10, 24);
-            // Chrome highlight
-            const cGrad = ctx.createLinearGradient(wx - 5, -5, wx + 5, -5);
-            cGrad.addColorStop(0, 'rgba(255,255,255,0.15)');
-            cGrad.addColorStop(0.5, 'rgba(255,255,255,0.35)');
-            cGrad.addColorStop(1, 'rgba(255,255,255,0.05)');
-            ctx.fillStyle = cGrad;
-            ctx.fillRect(wx - 5, -5, 10, 24);
-            // Cannon tip glow
-            ctx.fillStyle = player.weaponType === 'beam' ? C.purple : C.cyan;
-            ctx.shadowColor = player.weaponType === 'beam' ? C.purple : C.cyan;
-            ctx.shadowBlur = 10;
-            ctx.fillRect(wx - 4, -8, 8, 5);
-            ctx.shadowBlur = 0;
-            // Outline
-            ctx.strokeStyle = '#222';
-            ctx.lineWidth = 1;
-            ctx.strokeRect(wx - 5, -5, 10, 24);
+            const ex = side * 15;
+            // Engine housing (dark chrome)
+            const engGr = ctx.createLinearGradient(ex - 7, 14, ex + 7, 30);
+            engGr.addColorStop(0, '#888');
+            engGr.addColorStop(0.3, '#555');
+            engGr.addColorStop(0.6, '#777');
+            engGr.addColorStop(1, '#444');
+            ctx.fillStyle = engGr;
+            ctx.fillRect(ex - 7, 14, 14, 18);
+            // Gold trim top
+            ctx.fillStyle = C.gold;
+            ctx.fillRect(ex - 8, 13, 16, 2);
+            // Gold trim bottom
+            ctx.fillRect(ex - 8, 31, 16, 2);
+            // Gold trim sides
+            ctx.fillRect(ex - 8, 13, 2, 20);
+            ctx.fillRect(ex + 6, 13, 2, 20);
 
-            // Wing panel (extends outward)
-            ctx.fillStyle = '#444';
+            // Magenta engine core (upper)
+            ctx.fillStyle = C.magenta;
+            ctx.shadowColor = C.magenta;
+            ctx.shadowBlur = 10;
+            ctx.fillRect(ex - 4, 16, 8, 5);
+            // Core highlight
+            ctx.fillStyle = C.magentaBright;
+            ctx.fillRect(ex - 2, 17, 4, 2);
+
+            // Cyan engine core (lower)
+            ctx.fillStyle = C.cyan;
+            ctx.shadowColor = C.cyan;
+            ctx.shadowBlur = 10;
+            ctx.fillRect(ex - 4, 24, 8, 5);
+            // Core highlight
+            ctx.fillStyle = C.cyanBright;
+            ctx.fillRect(ex - 2, 25, 4, 2);
+            ctx.shadowBlur = 0;
+
+            // Vent lines
+            ctx.fillStyle = '#333';
+            ctx.fillRect(ex - 5, 22, 10, 1);
+            ctx.fillRect(ex - 5, 30, 10, 1);
+
+            // Outline
+            ctx.strokeStyle = '#1a1a1a';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(ex - 7, 14, 14, 18);
+        }
+
+        // ════════════════════════════════════════
+        // SWEPT BLADE WINGS (dragon-style)
+        // ════════════════════════════════════════
+        for (let side = -1; side <= 1; side += 2) {
+            // ─── Inner wing armor plate ───
+            const wingGr = ctx.createLinearGradient(side * 12, -10, side * 40, 20);
+            wingGr.addColorStop(0, '#999');
+            wingGr.addColorStop(0.3, '#B8B8B8');
+            wingGr.addColorStop(0.5, '#888');
+            wingGr.addColorStop(0.7, '#A0A0A0');
+            wingGr.addColorStop(1, '#666');
+            ctx.fillStyle = wingGr;
             ctx.beginPath();
-            ctx.moveTo(wx + side * 5, 0);
-            ctx.lineTo(wx + side * 14, 6);
-            ctx.lineTo(wx + side * 14, 18);
-            ctx.lineTo(wx + side * 5, 20);
+            ctx.moveTo(side * 10, -8);         // inner wing root top
+            ctx.lineTo(side * 28, -16);        // wing mid sweep
+            ctx.lineTo(side * 42, -10);        // wing tip top
+            ctx.lineTo(side * 44, 0);          // wing tip point
+            ctx.lineTo(side * 38, 8);          // wing trailing edge
+            ctx.lineTo(side * 28, 14);         // wing mid trailing
+            ctx.lineTo(side * 18, 18);         // inner trailing
+            ctx.lineTo(side * 10, 16);         // wing root bottom
             ctx.closePath();
             ctx.fill();
-            // Pink accent on wings (like concept art)
-            ctx.fillStyle = C.hotPink;
-            ctx.shadowColor = C.hotPink;
+
+            // Rim lighting (bright edge highlight)
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.45)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(side * 10, -8);
+            ctx.lineTo(side * 28, -16);
+            ctx.lineTo(side * 42, -10);
+            ctx.lineTo(side * 44, 0);
+            ctx.stroke();
+
+            // Wing underside shadow (pixel shading)
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
+            ctx.beginPath();
+            ctx.moveTo(side * 18, 18);
+            ctx.lineTo(side * 28, 14);
+            ctx.lineTo(side * 38, 8);
+            ctx.lineTo(side * 44, 0);
+            ctx.lineTo(side * 38, 10);
+            ctx.lineTo(side * 28, 16);
+            ctx.lineTo(side * 18, 20);
+            ctx.closePath();
+            ctx.fill();
+
+            // Gold trim on wing leading edge
+            ctx.strokeStyle = C.gold;
+            ctx.shadowColor = C.gold;
             ctx.shadowBlur = 4;
-            ctx.fillRect(wx + side * 6, 8, side * 7, 3);
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(side * 10, -8);
+            ctx.lineTo(side * 28, -16);
+            ctx.lineTo(side * 42, -10);
+            ctx.lineTo(side * 44, 0);
+            ctx.stroke();
+
+            // Gold trim on trailing edge
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(side * 10, 16);
+            ctx.lineTo(side * 18, 18);
+            ctx.lineTo(side * 28, 14);
+            ctx.lineTo(side * 38, 8);
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+
+            // Wing outline (cel-shading)
+            ctx.strokeStyle = '#1a1a1a';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(side * 10, -8);
+            ctx.lineTo(side * 28, -16);
+            ctx.lineTo(side * 42, -10);
+            ctx.lineTo(side * 44, 0);
+            ctx.lineTo(side * 38, 8);
+            ctx.lineTo(side * 28, 14);
+            ctx.lineTo(side * 18, 18);
+            ctx.lineTo(side * 10, 16);
+            ctx.closePath();
+            ctx.stroke();
+
+            // ─── Wing Cannons (with neon blue energy cells) ───
+            const canX = side * 30;
+            const canY = -4;
+
+            // Cannon barrel housing
+            ctx.fillStyle = '#606060';
+            ctx.fillRect(canX - 4, canY - 6, 8, 18);
+            // Chrome sheen on cannon
+            const canGr = ctx.createLinearGradient(canX - 4, canY, canX + 4, canY);
+            canGr.addColorStop(0, 'rgba(255,255,255,0.3)');
+            canGr.addColorStop(0.5, 'rgba(255,255,255,0.05)');
+            canGr.addColorStop(1, 'rgba(255,255,255,0.2)');
+            ctx.fillStyle = canGr;
+            ctx.fillRect(canX - 4, canY - 6, 8, 18);
+
+            // Gold trim on cannon
+            ctx.fillStyle = C.gold;
+            ctx.fillRect(canX - 5, canY - 7, 10, 1.5);
+            ctx.fillRect(canX - 5, canY + 11, 10, 1.5);
+
+            // ENERGY CELLS (pulsing neon blue rectangles)
+            const cellPulse = 0.6 + Math.sin(t * 0.15 + side * 1.5) * 0.4;
+            ctx.fillStyle = `rgba(0, 100, 255, ${cellPulse})`;
+            ctx.shadowColor = C.blue;
+            ctx.shadowBlur = 8 + cellPulse * 6;
+            // Top cell
+            ctx.fillRect(canX - 3, canY - 4, 6, 5);
+            // Bottom cell
+            ctx.fillRect(canX - 3, canY + 4, 6, 5);
+
+            // Cell bright core
+            ctx.fillStyle = `rgba(100, 180, 255, ${cellPulse})`;
+            ctx.fillRect(canX - 1.5, canY - 3, 3, 3);
+            ctx.fillRect(canX - 1.5, canY + 5, 3, 3);
+            ctx.shadowBlur = 0;
+
+            // Cannon tip (weapon glow)
+            const tipColor = player.weaponType === 'beam' ? C.purple : C.cyan;
+            ctx.fillStyle = tipColor;
+            ctx.shadowColor = tipColor;
+            ctx.shadowBlur = 10;
+            ctx.fillRect(canX - 3, canY - 10, 6, 4);
+            // Bright core in tip
+            ctx.fillStyle = C.white;
+            ctx.globalAlpha = 0.6 + fastPulse * 0.2;
+            ctx.fillRect(canX - 1.5, canY - 9, 3, 2);
+            ctx.globalAlpha = 1;
+            ctx.shadowBlur = 0;
+
+            // Cannon outline
+            ctx.strokeStyle = '#111';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(canX - 4, canY - 6, 8, 18);
+
+            // ─── Small cyan accent panels on wings ───
+            ctx.fillStyle = C.cyan;
+            ctx.shadowColor = C.cyan;
+            ctx.shadowBlur = 4;
+            ctx.fillRect(side * 18, -4, side * 6, 3);
+            ctx.fillRect(side * 20, 6, side * 5, 2.5);
+            ctx.shadowBlur = 0;
+
+            // ─── Purple accent strip under wing ───
+            ctx.fillStyle = C.purple;
+            ctx.shadowColor = C.purple;
+            ctx.shadowBlur = 3;
+            ctx.fillRect(side * 14, 10, side * 12, 2);
             ctx.shadowBlur = 0;
         }
 
-        // ─── Main Fuselage (detailed like concept art) ───
-        // Chrome/dark hull
-        const bodyGrad = ctx.createLinearGradient(-16, -30, 16, 28);
-        bodyGrad.addColorStop(0, '#D0D0D0');
-        bodyGrad.addColorStop(0.2, '#909090');
-        bodyGrad.addColorStop(0.4, '#B0B0B0');
-        bodyGrad.addColorStop(0.6, '#707070');
-        bodyGrad.addColorStop(0.8, '#585858');
-        bodyGrad.addColorStop(1, '#404040');
-        ctx.fillStyle = bodyGrad;
+        // ════════════════════════════════════════
+        // MAIN FUSELAGE (mech-dragon body)
+        // ════════════════════════════════════════
+
+        // ─── Layered armor plates - rear section ───
+        const rearGr = ctx.createLinearGradient(-12, 8, 12, 28);
+        rearGr.addColorStop(0, '#808080');
+        rearGr.addColorStop(0.3, '#999');
+        rearGr.addColorStop(0.5, '#707070');
+        rearGr.addColorStop(1, '#555');
+        ctx.fillStyle = rearGr;
         ctx.beginPath();
-        ctx.moveTo(0, -30);     // Nose
-        ctx.lineTo(-7, -22);
-        ctx.lineTo(-10, -12);
-        ctx.lineTo(-14, 0);
-        ctx.lineTo(-16, 12);
-        ctx.lineTo(-14, 22);
-        ctx.lineTo(-8, 26);
-        ctx.lineTo(0, 24);
-        ctx.lineTo(8, 26);
-        ctx.lineTo(14, 22);
-        ctx.lineTo(16, 12);
-        ctx.lineTo(14, 0);
-        ctx.lineTo(10, -12);
-        ctx.lineTo(7, -22);
+        ctx.moveTo(-12, 8);
+        ctx.lineTo(-14, 16);
+        ctx.lineTo(-12, 26);
+        ctx.lineTo(-6, 30);
+        ctx.lineTo(6, 30);
+        ctx.lineTo(12, 26);
+        ctx.lineTo(14, 16);
+        ctx.lineTo(12, 8);
         ctx.closePath();
         ctx.fill();
-        // Cel-shading outline
-        ctx.strokeStyle = '#222';
-        ctx.lineWidth = 1.8;
+        ctx.strokeStyle = '#1a1a1a';
+        ctx.lineWidth = 1.5;
         ctx.stroke();
+        // Rear gold trim
+        ctx.fillStyle = C.gold;
+        ctx.fillRect(-11, 8, 22, 2);
+        ctx.fillRect(-10, 18, 20, 1.5);
 
-        // Gold armor trim lines
+        // ─── Layered armor plates - mid section ───
+        const midGr = ctx.createLinearGradient(-14, -10, 14, 10);
+        midGr.addColorStop(0, '#B0B0B0');
+        midGr.addColorStop(0.2, '#8A8A8A');
+        midGr.addColorStop(0.5, '#CACACA');
+        midGr.addColorStop(0.7, '#808080');
+        midGr.addColorStop(1, '#6A6A6A');
+        ctx.fillStyle = midGr;
+        ctx.beginPath();
+        ctx.moveTo(-10, -10);
+        ctx.lineTo(-14, -2);
+        ctx.lineTo(-14, 6);
+        ctx.lineTo(-12, 10);
+        ctx.lineTo(12, 10);
+        ctx.lineTo(14, 6);
+        ctx.lineTo(14, -2);
+        ctx.lineTo(10, -10);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = '#1a1a1a';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        // Hard light reflection
+        ctx.fillStyle = 'rgba(255,255,255,0.2)';
+        ctx.beginPath();
+        ctx.moveTo(-8, -10);
+        ctx.lineTo(-12, -2);
+        ctx.lineTo(-5, -2);
+        ctx.lineTo(-3, -10);
+        ctx.closePath();
+        ctx.fill();
+        // Mid gold trim
         ctx.fillStyle = C.gold;
         ctx.shadowColor = C.gold;
         ctx.shadowBlur = 3;
-        ctx.fillRect(-9, -22, 18, 2.5);
-        ctx.fillRect(-12, -8, 24, 2);
-        ctx.fillRect(-14, 4, 28, 2);
-        ctx.fillRect(-12, 14, 24, 2);
+        ctx.fillRect(-13, -10, 26, 2);
+        ctx.fillRect(-13, 0, 26, 1.5);
+        ctx.fillRect(-11, 9, 22, 2);
         ctx.shadowBlur = 0;
 
-        // Red accent panels
-        ctx.fillStyle = C.red;
-        ctx.shadowColor = C.red;
-        ctx.shadowBlur = 6;
-        ctx.fillRect(-13, -4, 5, 10);
-        ctx.fillRect(8, -4, 5, 10);
-        ctx.shadowBlur = 0;
-
-        // Pink/magenta center detail (like concept art)
-        ctx.fillStyle = C.hotPink;
-        ctx.shadowColor = C.hotPink;
-        ctx.shadowBlur = 5;
-        ctx.fillRect(-4, 6, 8, 12);
-        ctx.shadowBlur = 0;
-        ctx.fillStyle = 'rgba(255,255,255,0.3)';
-        ctx.fillRect(-3, 7, 6, 4);
-
-        // Cockpit (glowing cyan gem, large like concept art)
-        ctx.shadowColor = C.cyan;
-        ctx.shadowBlur = 18;
-        const cockpitGrad = ctx.createRadialGradient(0, -16, 0, 0, -16, 7);
-        cockpitGrad.addColorStop(0, C.white);
-        cockpitGrad.addColorStop(0.3, C.cyanBright);
-        cockpitGrad.addColorStop(0.7, C.cyan);
-        cockpitGrad.addColorStop(1, 'rgba(0, 100, 200, 0.6)');
-        ctx.fillStyle = cockpitGrad;
+        // ─── Layered armor plates - upper section (dragon neck) ───
+        const upGr = ctx.createLinearGradient(-8, -28, 8, -8);
+        upGr.addColorStop(0, '#CDCDCD');
+        upGr.addColorStop(0.25, '#A0A0A0');
+        upGr.addColorStop(0.5, '#D8D8D8');
+        upGr.addColorStop(0.75, '#909090');
+        upGr.addColorStop(1, '#808080');
+        ctx.fillStyle = upGr;
         ctx.beginPath();
-        ctx.ellipse(0, -16, 5, 7, 0, 0, Math.PI * 2);
+        ctx.moveTo(0, -34);    // Dragon head point
+        ctx.lineTo(-5, -28);
+        ctx.lineTo(-8, -20);
+        ctx.lineTo(-10, -12);
+        ctx.lineTo(-10, -8);
+        ctx.lineTo(10, -8);
+        ctx.lineTo(10, -12);
+        ctx.lineTo(8, -20);
+        ctx.lineTo(5, -28);
+        ctx.closePath();
         ctx.fill();
-        // Cockpit frame
-        ctx.strokeStyle = C.gold;
+        ctx.strokeStyle = '#1a1a1a';
         ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.ellipse(0, -16, 6, 8, 0, 0, Math.PI * 2);
         ctx.stroke();
+        // Rim lighting on dragon head
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(-5, -28);
+        ctx.lineTo(0, -34);
+        ctx.lineTo(5, -28);
+        ctx.stroke();
+        // Gold trim on upper
+        ctx.fillStyle = C.gold;
+        ctx.shadowColor = C.gold;
+        ctx.shadowBlur = 3;
+        ctx.fillRect(-9, -20, 18, 2);
+        ctx.fillRect(-7, -26, 14, 1.5);
         ctx.shadowBlur = 0;
 
-        // Nose antenna
+        // ─── Dragon head crest (small V-horns) ───
+        for (let side = -1; side <= 1; side += 2) {
+            ctx.fillStyle = C.gold;
+            ctx.shadowColor = C.gold;
+            ctx.shadowBlur = 4;
+            ctx.beginPath();
+            ctx.moveTo(side * 3, -30);
+            ctx.lineTo(side * 7, -38);
+            ctx.lineTo(side * 5, -32);
+            ctx.closePath();
+            ctx.fill();
+        }
+        ctx.shadowBlur = 0;
+
+        // ─── Nose tip antenna/sensor ───
         ctx.strokeStyle = C.chrome;
         ctx.lineWidth = 1.5;
         ctx.beginPath();
-        ctx.moveTo(0, -30);
-        ctx.lineTo(0, -36);
+        ctx.moveTo(0, -34);
+        ctx.lineTo(0, -40);
         ctx.stroke();
         ctx.fillStyle = C.cyan;
         ctx.shadowColor = C.cyan;
-        ctx.shadowBlur = 6;
+        ctx.shadowBlur = 8;
         ctx.beginPath();
-        ctx.arc(0, -36, 2, 0, Math.PI * 2);
+        ctx.arc(0, -40, 2.5, 0, Math.PI * 2);
         ctx.fill();
         ctx.shadowBlur = 0;
+
+        // ════════════════════════════════════════
+        // COCKPIT (bright orange-red glowing gem)
+        // ════════════════════════════════════════
+        // Gold frame (outer)
+        ctx.strokeStyle = C.gold;
+        ctx.shadowColor = C.gold;
+        ctx.shadowBlur = 6;
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.ellipse(0, -4, 8, 11, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+
+        // Cockpit gem - orange-red glow
+        const cockGr = ctx.createRadialGradient(-1, -6, 0, 0, -4, 10);
+        cockGr.addColorStop(0, '#FFEE44');        // bright yellow center
+        cockGr.addColorStop(0.25, '#FF8800');      // orange
+        cockGr.addColorStop(0.5, '#FF4400');        // red-orange
+        cockGr.addColorStop(0.8, '#CC2200');        // deep red
+        cockGr.addColorStop(1, 'rgba(100, 10, 0, 0.8)');
+        ctx.fillStyle = cockGr;
+        ctx.shadowColor = '#FF6600';
+        ctx.shadowBlur = 20;
+        ctx.beginPath();
+        ctx.ellipse(0, -4, 6.5, 9.5, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Cockpit highlight (hard light reflection)
+        ctx.fillStyle = 'rgba(255, 255, 200, 0.6)';
+        ctx.shadowBlur = 0;
+        ctx.beginPath();
+        ctx.ellipse(-2, -8, 2.5, 3, -0.3, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Second highlight
+        ctx.fillStyle = 'rgba(255, 200, 100, 0.3)';
+        ctx.beginPath();
+        ctx.ellipse(1.5, -1, 2, 2.5, 0.2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+
+        // ════════════════════════════════════════
+        // DETAIL OVERLAYS (cyan accent panels)
+        // ════════════════════════════════════════
+        ctx.fillStyle = C.cyan;
+        ctx.shadowColor = C.cyan;
+        ctx.shadowBlur = 4;
+        // Small cyan vents on mid section
+        ctx.fillRect(-8, -6, 4, 2);
+        ctx.fillRect(4, -6, 4, 2);
+        // Cyan panel near rear
+        ctx.fillRect(-6, 14, 4, 2.5);
+        ctx.fillRect(2, 14, 4, 2.5);
+        // Neck vents
+        ctx.fillRect(-6, -16, 3, 2);
+        ctx.fillRect(3, -16, 3, 2);
+        ctx.shadowBlur = 0;
+
+        // ─── Purple accent strips (body sides) ───
+        ctx.fillStyle = C.purple;
+        ctx.shadowColor = C.purple;
+        ctx.shadowBlur = 3;
+        ctx.fillRect(-13, 2, 3, 6);
+        ctx.fillRect(10, 2, 3, 6);
+        ctx.fillRect(-11, 20, 3, 5);
+        ctx.fillRect(8, 20, 3, 5);
+        ctx.shadowBlur = 0;
+
+        // ─── Final rim light pass (top edges glow) ───
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+        ctx.lineWidth = 0.8;
+        // Upper body rim
+        ctx.beginPath();
+        ctx.moveTo(-10, -8);
+        ctx.lineTo(-8, -20);
+        ctx.lineTo(-5, -28);
+        ctx.lineTo(0, -34);
+        ctx.lineTo(5, -28);
+        ctx.lineTo(8, -20);
+        ctx.lineTo(10, -8);
+        ctx.stroke();
 
         ctx.restore();
     }
