@@ -118,7 +118,7 @@
 
     function startMusic() {
         if (!bgMusic || musicStarted) return;
-        bgMusic.volume = 0.4;
+        bgMusic.volume = 0.15; // Lowered volume
         bgMusic.play().then(() => { musicStarted = true; }).catch(() => {});
     }
     function pauseMusic() { if (bgMusic) bgMusic.pause(); }
@@ -151,15 +151,23 @@
                 osc.type = 'square';
                 osc.frequency.setValueAtTime(1200, now);
                 osc.frequency.exponentialRampToValueAtTime(300, now + 0.06);
-                gain.gain.setValueAtTime(0.06, now);
+                gain.gain.setValueAtTime(0.02, now); // Lower volume
                 gain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
                 osc.start(now); osc.stop(now + 0.06);
+                break;
+            case 'spread':
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(1500, now);
+                osc.frequency.exponentialRampToValueAtTime(400, now + 0.08);
+                gain.gain.setValueAtTime(0.025, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+                osc.start(now); osc.stop(now + 0.08);
                 break;
             case 'beam':
                 osc.type = 'sawtooth';
                 osc.frequency.setValueAtTime(800, now);
                 osc.frequency.exponentialRampToValueAtTime(600, now + 0.1);
-                gain.gain.setValueAtTime(0.08, now);
+                gain.gain.setValueAtTime(0.03, now); // Lower volume
                 gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
                 osc.start(now); osc.stop(now + 0.1);
                 break;
@@ -167,7 +175,7 @@
                 osc.type = 'sawtooth';
                 osc.frequency.setValueAtTime(200, now);
                 osc.frequency.exponentialRampToValueAtTime(25, now + 0.4);
-                gain.gain.setValueAtTime(0.15, now);
+                gain.gain.setValueAtTime(0.05, now); // Lower volume
                 gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
                 osc.start(now); osc.stop(now + 0.4);
                 // Add noise layer
@@ -447,6 +455,16 @@
         waveSpawned = true;
         const loopMultiplier = 1 + Math.floor((waveNum - 1) / 10) * 0.5;
         const effectiveWave = ((waveNum - 1) % 10) + 1;
+        
+        // Adaptive Audio logic: pitch/speed changes per level
+        if (bgMusic) {
+            if (effectiveWave === 10) {
+                bgMusic.playbackRate = 0.65; // Slow and heavy for Boss
+            } else {
+                bgMusic.playbackRate = 1.0 + (effectiveWave * 0.04); // Gradually faster
+            }
+        }
+
         switch (effectiveWave) {
             case 1: spawnBeetleFormation(5, 2, loopMultiplier); break;
             case 2: spawnBeetleFormation(7, 3, loopMultiplier); break;
@@ -520,7 +538,10 @@
             return; 
         }
 
-        if (frameCount % 3 === 0) playSound('shoot');
+        if (frameCount % 3 === 0) {
+            if (player.powerLevel > 0) playSound('spread');
+            else playSound('shoot');
+        }
 
         const bx = player.x;
         const by = player.y - player.height / 2;
