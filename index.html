@@ -12,10 +12,11 @@
 </head>
 <body>
     <div id="game-container">
+        <!-- Layered canvases: background renders separately for performance -->
+        <canvas id="bgCanvas"></canvas>
         <canvas id="gameCanvas"></canvas>
         <div id="scanlines"></div>
         <div id="vignette"></div>
-        <!-- Background music - user can replace bgm.mp3 with their own file -->
         <audio id="bgMusic" loop preload="auto">
             <source src="bgm.mp3" type="audio/mpeg">
             <source src="bgm.ogg" type="audio/ogg">

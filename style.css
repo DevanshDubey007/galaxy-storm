@@ -1,6 +1,5 @@
 /* ===== GALAXY STORM - Retro-Futuristic Space Shooter ===== */
 
-/* CSS Reset & Base */
 *, *::before, *::after {
     margin: 0;
     padding: 0;
@@ -27,7 +26,6 @@ html, body {
     font-family: 'Orbitron', sans-serif;
 }
 
-/* Game Container */
 #game-container {
     position: relative;
     width: 100vw;
@@ -39,16 +37,25 @@ html, body {
     overflow: hidden;
 }
 
-/* Main Canvas */
-#gameCanvas {
-    display: block;
+/* Layered canvas system */
+#bgCanvas, #gameCanvas {
+    position: absolute;
+    top: 0;
+    left: 0;
     width: 100%;
     height: 100%;
     image-rendering: pixelated;
     image-rendering: crisp-edges;
 }
 
-/* CRT Scanline Overlay */
+#bgCanvas {
+    z-index: 1;
+}
+
+#gameCanvas {
+    z-index: 2;
+}
+
 #scanlines {
     position: absolute;
     top: 0;
@@ -72,7 +79,6 @@ html, body {
     100% { opacity: 0.9; }
 }
 
-/* Vignette Effect */
 #vignette {
     position: absolute;
     top: 0;
@@ -89,7 +95,6 @@ html, body {
     );
 }
 
-/* Neon Border Pulse */
 #game-container::before {
     content: '';
     position: absolute;
@@ -110,33 +115,22 @@ html, body {
 @keyframes borderPulse {
     0%, 100% {
         border-color: var(--neon-cyan);
-        box-shadow:
-            0 0 10px var(--neon-cyan),
-            0 0 20px var(--electric-purple),
-            inset 0 0 10px rgba(0, 255, 255, 0.1);
+        box-shadow: 0 0 10px var(--neon-cyan), 0 0 20px var(--electric-purple), inset 0 0 10px rgba(0, 255, 255, 0.1);
     }
     33% {
         border-color: var(--electric-purple);
-        box-shadow:
-            0 0 10px var(--electric-purple),
-            0 0 20px var(--hot-magenta),
-            inset 0 0 10px rgba(191, 0, 255, 0.1);
+        box-shadow: 0 0 10px var(--electric-purple), 0 0 20px var(--hot-magenta), inset 0 0 10px rgba(191, 0, 255, 0.1);
     }
     66% {
         border-color: var(--hot-magenta);
-        box-shadow:
-            0 0 10px var(--hot-magenta),
-            0 0 20px var(--neon-cyan),
-            inset 0 0 10px rgba(255, 0, 144, 0.1);
+        box-shadow: 0 0 10px var(--hot-magenta), 0 0 20px var(--neon-cyan), inset 0 0 10px rgba(255, 0, 144, 0.1);
     }
 }
 
-/* Hide cursor during gameplay */
 #gameCanvas.playing {
     cursor: none;
 }
 
-/* Responsive adjustments */
 @media (max-width: 768px) {
     #scanlines {
         background: repeating-linear-gradient(

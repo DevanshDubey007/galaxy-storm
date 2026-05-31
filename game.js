@@ -7,13 +7,39 @@
 (() => {
     'use strict';
 
-    // ── Canvas Setup ──
+    // ── Canvas Setup (Layered: bgCanvas for background, gameCanvas for sprites) ──
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
-
-    // Off-screen buffer for background (performance)
-    const bgCanvas = document.createElement('canvas');
+    const bgCanvas = document.getElementById('bgCanvas');
     const bgCtx = bgCanvas.getContext('2d');
+
+    // ── Performance: Spatial Grid for Collision ──
+    const GRID_SIZE = 80;
+    let collisionGrid = {};
+    function gridKey(x, y) { return `${(x / GRID_SIZE) | 0},${(y / GRID_SIZE) | 0}`; }
+    function gridClear() { collisionGrid = {}; }
+    function gridInsert(entity) {
+        const key = gridKey(entity.x, entity.y);
+        if (!collisionGrid[key]) collisionGrid[key] = [];
+        collisionGrid[key].push(entity);
+    }
+    function gridQuery(x, y, radius) {
+        const results = [];
+        const minGX = ((x - radius) / GRID_SIZE) | 0;
+        const maxGX = ((x + radius) / GRID_SIZE) | 0;
+        const minGY = ((y - radius) / GRID_SIZE) | 0;
+        const maxGY = ((y + radius) / GRID_SIZE) | 0;
+        for (let gx = minGX; gx <= maxGX; gx++) {
+            for (let gy = minGY; gy <= maxGY; gy++) {
+                const cell = collisionGrid[`${gx},${gy}`];
+                if (cell) for (let i = 0; i < cell.length; i++) results.push(cell[i]);
+            }
+        }
+        return results;
+    }
+
+    // ── Performance: Frame timing ──
+    let bgFrameCounter = 0; // Only update background every N frames
 
     function resizeCanvas() {
         canvas.width = window.innerWidth;
@@ -66,6 +92,7 @@
     let deltaTime = 0;
     let lastFrameTime = 0;
     let frameCount = 0;
+    let dt = 1; // normalized delta time (1.0 = 60fps)
     let musicStarted = false;
 
     // ── Input ──
@@ -352,7 +379,7 @@
         }
         enemies.length = 0;
         enemyBullets.length = 0;
-        for (let i = 0; i < 300; i++) {
+        for (let i = 0; i < 80; i++) {
             const angle = Math.random() * Math.PI * 2;
             const speed = 2 + Math.random() * 10;
             particles.push({ x: canvas.width / 2, y: canvas.height / 2, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, life: 50 + Math.random() * 60, maxLife: 110, color: [C.cyan, C.magenta, C.gold, C.orange, C.white][Math.floor(Math.random() * 5)], size: 2 + Math.random() * 5 });
@@ -600,8 +627,8 @@
         player.vx = Math.max(-spd, Math.min(spd, player.vx));
         player.vy = Math.max(-spd, Math.min(spd, player.vy));
 
-        player.x += player.vx;
-        player.y += player.vy;
+        player.x += player.vx * dt;
+        player.y += player.vy * dt;
         player.x = Math.max(player.width / 2, Math.min(canvas.width - player.width / 2, player.x));
         player.y = Math.max(canvas.height * 0.25, Math.min(canvas.height - player.height / 2 - 10, player.y));
 
@@ -626,7 +653,7 @@
     function updateBullets() {
         for (let i = bullets.length - 1; i >= 0; i--) {
             const b = bullets[i];
-            b.x += b.vx; b.y += b.vy;
+            b.x += b.vx * dt; b.y += b.vy * dt;
             if (frameCount % 2 === 0) {
                 particles.push({ x: b.x + (Math.random() - 0.5) * 3, y: b.y + 4, vx: (Math.random() - 0.5) * 0.5, vy: 2, life: 6, maxLife: 6, color: b.color, size: 1.5 });
             }
@@ -634,7 +661,7 @@
         }
         for (let i = enemyBullets.length - 1; i >= 0; i--) {
             const b = enemyBullets[i];
-            b.x += b.vx; b.y += b.vy;
+            b.x += b.vx * dt; b.y += b.vy * dt;
             if (frameCount % 3 === 0) {
                 particles.push({ x: b.x, y: b.y, vx: (Math.random() - 0.5) * 0.3, vy: (Math.random() - 0.5) * 0.3, life: 5, maxLife: 5, color: b.color, size: 1 });
             }
@@ -649,18 +676,18 @@
             e.moveTimer++;
             if (e.animPhase !== undefined) e.animPhase += 0.05;
             switch (e.movePattern) {
-                case 'zigzag': e.x += Math.sin(e.moveTimer * 0.03) * e.speed * 1.2; e.y += 0.12; break;
+                case 'zigzag': e.x += Math.sin(e.moveTimer * 0.03) * e.speed * 1.2 * dt; e.y += 0.12 * dt; break;
                 case 'swoop':
-                    e.swoopPhase += 0.02;
-                    e.x += Math.sin(e.moveTimer * 0.025) * e.speed * 1.8;
-                    if (Math.sin(e.swoopPhase) > 0.88) e.y += e.speed * 2.5;
-                    else e.y += Math.sin(e.moveTimer * 0.01) * 0.5;
+                    e.swoopPhase += 0.02 * dt;
+                    e.x += Math.sin(e.moveTimer * 0.025) * e.speed * 1.8 * dt;
+                    if (Math.sin(e.swoopPhase) > 0.88) e.y += e.speed * 2.5 * dt;
+                    else e.y += Math.sin(e.moveTimer * 0.01) * 0.5 * dt;
                     break;
-                case 'drift': e.x += Math.sin(e.moveTimer * 0.018) * e.speed; e.y += Math.cos(e.moveTimer * 0.01) * 0.3; break;
-                case 'patrol': e.x += e.moveDir * e.speed * 1.8; if (e.x < 60 || e.x > canvas.width - 60) e.moveDir *= -1; break;
+                case 'drift': e.x += Math.sin(e.moveTimer * 0.018) * e.speed * dt; e.y += Math.cos(e.moveTimer * 0.01) * 0.3 * dt; break;
+                case 'patrol': e.x += e.moveDir * e.speed * 1.8 * dt; if (e.x < 60 || e.x > canvas.width - 60) e.moveDir *= -1; break;
                 case 'boss':
-                    e.x += e.moveDir * e.speed * 1.2; if (e.x < 110 || e.x > canvas.width - 110) e.moveDir *= -1;
-                    e.y += Math.sin(e.moveTimer * 0.01) * 0.6;
+                    e.x += e.moveDir * e.speed * 1.2 * dt; if (e.x < 110 || e.x > canvas.width - 110) e.moveDir *= -1;
+                    e.y += Math.sin(e.moveTimer * 0.01) * 0.6 * dt;
                     e.patternTimer++; if (e.patternTimer > 180) { e.attackPattern++; e.patternTimer = 0; }
                     break;
             }
@@ -672,9 +699,9 @@
     }
 
     function updateParticles() {
-        for (let i = particles.length - 1; i >= 0; i--) { const p = particles[i]; p.x += p.vx; p.y += p.vy; p.life--; if (p.life <= 0) particles.splice(i, 1); }
+        for (let i = particles.length - 1; i >= 0; i--) { const p = particles[i]; p.x += p.vx * dt; p.y += p.vy * dt; p.life -= dt; if (p.life <= 0) particles.splice(i, 1); }
         // Cap particles for performance
-        if (particles.length > 800) particles.splice(0, particles.length - 800);
+        if (particles.length > 200) particles.splice(0, particles.length - 200);
     }
 
     function updateExplosions() {
@@ -723,12 +750,16 @@
         for (let i = textPopups.length - 1; i >= 0; i--) { textPopups[i].y -= 1.2; textPopups[i].life--; if (textPopups[i].life <= 0) textPopups.splice(i, 1); }
     }
 
-    // ── Collision Detection ──
+    // ── Collision Detection (Spatial Grid Accelerated) ──
     function checkCollisions() {
+        // Bullets vs enemies (use spatial grid)
         for (let bi = bullets.length - 1; bi >= 0; bi--) {
             const b = bullets[bi];
-            for (let ei = enemies.length - 1; ei >= 0; ei--) {
-                const e = enemies[ei];
+            const nearby = gridQuery(b.x, b.y, GRID_SIZE);
+            let hit = false;
+            for (let ni = 0; ni < nearby.length; ni++) {
+                const e = nearby[ni];
+                if (e.hp <= 0) continue;
                 if (Math.abs(b.x - e.x) < e.width / 2 + b.size && Math.abs(b.y - e.y) < e.height / 2 + b.size) {
                     e.hp -= b.damage;
                     bullets.splice(bi, 1);
@@ -744,11 +775,18 @@
                         playSound('explosion');
                         spawnTextPopup(e.x, e.y, `+${e.scoreValue}`, C.gold);
                         spawnPowerup(e.x, e.y);
-                        enemies.splice(ei, 1);
+                        const idx = enemies.indexOf(e);
+                        if (idx !== -1) enemies.splice(idx, 1);
                     }
+                    hit = true;
                     break;
                 }
             }
+        }
+
+        // Remove dead enemies that were killed by grid checks
+        for (let i = enemies.length - 1; i >= 0; i--) {
+            if (enemies[i].hp <= 0) enemies.splice(i, 1);
         }
 
         // Beam vs enemies
@@ -757,7 +795,7 @@
             for (let ei = enemies.length - 1; ei >= 0; ei--) {
                 const e = enemies[ei];
                 if (Math.abs(e.x - player.x) < e.width / 2 + beamW / 2 && e.y < player.y) {
-                    e.hp -= 0.35;
+                    e.hp -= 0.35 * dt;
                     if (frameCount % 4 === 0) particles.push({ x: e.x + (Math.random() - 0.5) * 12, y: e.y, vx: (Math.random() - 0.5) * 5, vy: (Math.random() - 0.5) * 5, life: 10, maxLife: 10, color: C.purple, size: 2.5 });
                     if (e.hp <= 0) {
                         score += e.scoreValue;
@@ -810,8 +848,7 @@
     // ═══════════════════════════════════════════════════════════
 
     function drawBackground() {
-        // Draw cached static background
-        ctx.drawImage(bgCanvas, 0, 0);
+        // bgCanvas is now a visible DOM layer behind gameCanvas - no need to copy it
 
         // Animated nebula clouds (volumetric, warm+cool tones)
         for (const n of nebulaBlobs) {
@@ -934,11 +971,8 @@
             ctx.arc(0, 0, 44, 0, Math.PI * 2);
             ctx.fill();
             ctx.strokeStyle = C.gold;
-            ctx.shadowColor = C.gold;
-            ctx.shadowBlur = 14;
             ctx.lineWidth = 2;
             ctx.stroke();
-            ctx.shadowBlur = 0;
             ctx.globalAlpha = 1;
         }
 
@@ -946,12 +980,9 @@
         if (player.speedBoost > 0) {
             ctx.globalAlpha = 0.1;
             ctx.fillStyle = C.green;
-            ctx.shadowColor = C.green;
-            ctx.shadowBlur = 22;
             ctx.beginPath();
             ctx.arc(0, 0, 35 + fastPulse * 5, 0, Math.PI * 2);
             ctx.fill();
-            ctx.shadowBlur = 0;
             ctx.globalAlpha = 1;
         }
 
@@ -970,8 +1001,6 @@
             outerGr.addColorStop(0.7, 'rgba(191, 0, 255, 0.5)');
             outerGr.addColorStop(1, 'rgba(100, 0, 200, 0)');
             ctx.fillStyle = outerGr;
-            ctx.shadowColor = C.magenta;
-            ctx.shadowBlur = 14;
             ctx.beginPath();
             ctx.moveTo(thrX - 7, thrY);
             ctx.quadraticCurveTo(thrX - 4, thrY + flameLen * 0.6, thrX, thrY + flameLen);
@@ -986,15 +1015,12 @@
             innerGr.addColorStop(0.6, C.purpleBright);
             innerGr.addColorStop(1, 'transparent');
             ctx.fillStyle = innerGr;
-            ctx.shadowBlur = 8;
-            ctx.shadowColor = C.white;
-            ctx.beginPath();
+                        ctx.beginPath();
             ctx.moveTo(thrX - 3, thrY);
             ctx.quadraticCurveTo(thrX - 1.5, thrY + flameLen * 0.4, thrX, thrY + flameLen * 0.7);
             ctx.quadraticCurveTo(thrX + 1.5, thrY + flameLen * 0.4, thrX + 3, thrY);
             ctx.closePath();
             ctx.fill();
-            ctx.shadowBlur = 0;
         }
 
         // Center thruster (smaller)
@@ -1005,16 +1031,12 @@
         cGr.addColorStop(0.7, C.purple);
         cGr.addColorStop(1, 'transparent');
         ctx.fillStyle = cGr;
-        ctx.shadowColor = C.magenta;
-        ctx.shadowBlur = 10;
         ctx.beginPath();
         ctx.moveTo(-3, 28);
         ctx.lineTo(0, 28 + cLen);
         ctx.lineTo(3, 28);
         ctx.closePath();
         ctx.fill();
-        ctx.shadowBlur = 0;
-
         // ════════════════════════════════════════
         // ENGINE BLOCKS (magenta + cyan cores)
         // ════════════════════════════════════════
@@ -1039,8 +1061,6 @@
 
             // Magenta engine core (upper)
             ctx.fillStyle = C.magenta;
-            ctx.shadowColor = C.magenta;
-            ctx.shadowBlur = 10;
             ctx.fillRect(ex - 4, 16, 8, 5);
             // Core highlight
             ctx.fillStyle = C.magentaBright;
@@ -1048,14 +1068,10 @@
 
             // Cyan engine core (lower)
             ctx.fillStyle = C.cyan;
-            ctx.shadowColor = C.cyan;
-            ctx.shadowBlur = 10;
             ctx.fillRect(ex - 4, 24, 8, 5);
             // Core highlight
             ctx.fillStyle = C.cyanBright;
             ctx.fillRect(ex - 2, 25, 4, 2);
-            ctx.shadowBlur = 0;
-
             // Vent lines
             ctx.fillStyle = '#333';
             ctx.fillRect(ex - 5, 22, 10, 1);
@@ -1116,8 +1132,6 @@
 
             // Gold trim on wing leading edge
             ctx.strokeStyle = C.gold;
-            ctx.shadowColor = C.gold;
-            ctx.shadowBlur = 4;
             ctx.lineWidth = 2;
             ctx.beginPath();
             ctx.moveTo(side * 10, -8);
@@ -1134,8 +1148,6 @@
             ctx.lineTo(side * 28, 14);
             ctx.lineTo(side * 38, 8);
             ctx.stroke();
-            ctx.shadowBlur = 0;
-
             // Wing outline (cel-shading)
             ctx.strokeStyle = '#1a1a1a';
             ctx.lineWidth = 1.5;
@@ -1174,8 +1186,6 @@
             // ENERGY CELLS (pulsing neon blue rectangles)
             const cellPulse = 0.6 + Math.sin(t * 0.15 + side * 1.5) * 0.4;
             ctx.fillStyle = `rgba(0, 100, 255, ${cellPulse})`;
-            ctx.shadowColor = C.blue;
-            ctx.shadowBlur = 8 + cellPulse * 6;
             // Top cell
             ctx.fillRect(canX - 3, canY - 4, 6, 5);
             // Bottom cell
@@ -1185,21 +1195,15 @@
             ctx.fillStyle = `rgba(100, 180, 255, ${cellPulse})`;
             ctx.fillRect(canX - 1.5, canY - 3, 3, 3);
             ctx.fillRect(canX - 1.5, canY + 5, 3, 3);
-            ctx.shadowBlur = 0;
-
             // Cannon tip (weapon glow)
             const tipColor = player.weaponType === 'beam' ? C.purple : C.cyan;
             ctx.fillStyle = tipColor;
-            ctx.shadowColor = tipColor;
-            ctx.shadowBlur = 10;
             ctx.fillRect(canX - 3, canY - 10, 6, 4);
             // Bright core in tip
             ctx.fillStyle = C.white;
             ctx.globalAlpha = 0.6 + fastPulse * 0.2;
             ctx.fillRect(canX - 1.5, canY - 9, 3, 2);
             ctx.globalAlpha = 1;
-            ctx.shadowBlur = 0;
-
             // Cannon outline
             ctx.strokeStyle = '#111';
             ctx.lineWidth = 1;
@@ -1207,18 +1211,11 @@
 
             // ─── Small cyan accent panels on wings ───
             ctx.fillStyle = C.cyan;
-            ctx.shadowColor = C.cyan;
-            ctx.shadowBlur = 4;
             ctx.fillRect(side * 18, -4, side * 6, 3);
             ctx.fillRect(side * 20, 6, side * 5, 2.5);
-            ctx.shadowBlur = 0;
-
             // ─── Purple accent strip under wing ───
             ctx.fillStyle = C.purple;
-            ctx.shadowColor = C.purple;
-            ctx.shadowBlur = 3;
             ctx.fillRect(side * 14, 10, side * 12, 2);
-            ctx.shadowBlur = 0;
         }
 
         // ════════════════════════════════════════
@@ -1284,13 +1281,9 @@
         ctx.fill();
         // Mid gold trim
         ctx.fillStyle = C.gold;
-        ctx.shadowColor = C.gold;
-        ctx.shadowBlur = 3;
         ctx.fillRect(-13, -10, 26, 2);
         ctx.fillRect(-13, 0, 26, 1.5);
         ctx.fillRect(-11, 9, 22, 2);
-        ctx.shadowBlur = 0;
-
         // ─── Layered armor plates - upper section (dragon neck) ───
         const upGr = ctx.createLinearGradient(-8, -28, 8, -8);
         upGr.addColorStop(0, '#CDCDCD');
@@ -1324,17 +1317,11 @@
         ctx.stroke();
         // Gold trim on upper
         ctx.fillStyle = C.gold;
-        ctx.shadowColor = C.gold;
-        ctx.shadowBlur = 3;
         ctx.fillRect(-9, -20, 18, 2);
         ctx.fillRect(-7, -26, 14, 1.5);
-        ctx.shadowBlur = 0;
-
         // ─── Dragon head crest (small V-horns) ───
         for (let side = -1; side <= 1; side += 2) {
             ctx.fillStyle = C.gold;
-            ctx.shadowColor = C.gold;
-            ctx.shadowBlur = 4;
             ctx.beginPath();
             ctx.moveTo(side * 3, -30);
             ctx.lineTo(side * 7, -38);
@@ -1342,8 +1329,6 @@
             ctx.closePath();
             ctx.fill();
         }
-        ctx.shadowBlur = 0;
-
         // ─── Nose tip antenna/sensor ───
         ctx.strokeStyle = C.chrome;
         ctx.lineWidth = 1.5;
@@ -1352,26 +1337,18 @@
         ctx.lineTo(0, -40);
         ctx.stroke();
         ctx.fillStyle = C.cyan;
-        ctx.shadowColor = C.cyan;
-        ctx.shadowBlur = 8;
         ctx.beginPath();
         ctx.arc(0, -40, 2.5, 0, Math.PI * 2);
         ctx.fill();
-        ctx.shadowBlur = 0;
-
         // ════════════════════════════════════════
         // COCKPIT (bright orange-red glowing gem)
         // ════════════════════════════════════════
         // Gold frame (outer)
         ctx.strokeStyle = C.gold;
-        ctx.shadowColor = C.gold;
-        ctx.shadowBlur = 6;
         ctx.lineWidth = 2.5;
         ctx.beginPath();
         ctx.ellipse(0, -4, 8, 11, 0, 0, Math.PI * 2);
         ctx.stroke();
-        ctx.shadowBlur = 0;
-
         // Cockpit gem - orange-red glow
         const cockGr = ctx.createRadialGradient(-1, -6, 0, 0, -4, 10);
         cockGr.addColorStop(0, '#FFEE44');        // bright yellow center
@@ -1380,15 +1357,12 @@
         cockGr.addColorStop(0.8, '#CC2200');        // deep red
         cockGr.addColorStop(1, 'rgba(100, 10, 0, 0.8)');
         ctx.fillStyle = cockGr;
-        ctx.shadowColor = '#FF6600';
-        ctx.shadowBlur = 20;
         ctx.beginPath();
         ctx.ellipse(0, -4, 6.5, 9.5, 0, 0, Math.PI * 2);
         ctx.fill();
 
         // Cockpit highlight (hard light reflection)
         ctx.fillStyle = 'rgba(255, 255, 200, 0.6)';
-        ctx.shadowBlur = 0;
         ctx.beginPath();
         ctx.ellipse(-2, -8, 2.5, 3, -0.3, 0, Math.PI * 2);
         ctx.fill();
@@ -1398,14 +1372,10 @@
         ctx.beginPath();
         ctx.ellipse(1.5, -1, 2, 2.5, 0.2, 0, Math.PI * 2);
         ctx.fill();
-        ctx.shadowBlur = 0;
-
         // ════════════════════════════════════════
         // DETAIL OVERLAYS (cyan accent panels)
         // ════════════════════════════════════════
         ctx.fillStyle = C.cyan;
-        ctx.shadowColor = C.cyan;
-        ctx.shadowBlur = 4;
         // Small cyan vents on mid section
         ctx.fillRect(-8, -6, 4, 2);
         ctx.fillRect(4, -6, 4, 2);
@@ -1415,18 +1385,12 @@
         // Neck vents
         ctx.fillRect(-6, -16, 3, 2);
         ctx.fillRect(3, -16, 3, 2);
-        ctx.shadowBlur = 0;
-
         // ─── Purple accent strips (body sides) ───
         ctx.fillStyle = C.purple;
-        ctx.shadowColor = C.purple;
-        ctx.shadowBlur = 3;
         ctx.fillRect(-13, 2, 3, 6);
         ctx.fillRect(10, 2, 3, 6);
         ctx.fillRect(-11, 20, 3, 5);
         ctx.fillRect(8, 20, 3, 5);
-        ctx.shadowBlur = 0;
-
         // ─── Final rim light pass (top edges glow) ───
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
         ctx.lineWidth = 0.8;
@@ -1480,13 +1444,9 @@
 
         // Elytra (wing covers)
         ctx.fillStyle = bodyColor;
-        ctx.shadowColor = e.color;
-        ctx.shadowBlur = 12;
         ctx.beginPath();
         ctx.ellipse(0, 2, 16, 18, 0, 0, Math.PI * 2);
         ctx.fill();
-        ctx.shadowBlur = 0;
-
         // Metallic sheen (iridescent)
         const sheenHue = (globalTime * 1.5 + e.animPhase * 60) % 360;
         ctx.globalAlpha = 0.15;
@@ -1522,14 +1482,10 @@
 
         // Glowing eyes
         ctx.fillStyle = C.red;
-        ctx.shadowColor = C.red;
-        ctx.shadowBlur = 10;
         ctx.beginPath();
         ctx.arc(-4, -14, 3, 0, Math.PI * 2);
         ctx.arc(4, -14, 3, 0, Math.PI * 2);
         ctx.fill();
-        ctx.shadowBlur = 0;
-
         // Eye inner glow
         ctx.fillStyle = C.redBright;
         ctx.beginPath();
@@ -1567,8 +1523,6 @@
             const wingColor = `hsla(${hue + side * 30}, 100%, 65%, 0.6)`;
             const wingGlow = `hsl(${hue + side * 30}, 100%, 55%)`;
             ctx.fillStyle = wingColor;
-            ctx.shadowColor = wingGlow;
-            ctx.shadowBlur = 12;
             ctx.beginPath();
             ctx.ellipse(side * 16, -6, 16 * Math.abs(wingFlap * 0.7 + 0.3), 7, side * -0.3, 0, Math.PI * 2);
             ctx.fill();
@@ -1586,8 +1540,6 @@
             ctx.beginPath();
             ctx.ellipse(side * 13, 6, 13 * Math.abs(wingFlap * 0.6 + 0.4), 5, side * -0.2, 0, Math.PI * 2);
             ctx.fill();
-
-            ctx.shadowBlur = 0;
             ctx.restore();
         }
 
@@ -1596,22 +1548,14 @@
         // ─── BODY (segmented, metallic) ───
         // Thorax
         ctx.fillStyle = flash ? C.white : '#003322';
-        ctx.shadowColor = e.color;
-        ctx.shadowBlur = 6;
         ctx.beginPath();
         ctx.ellipse(0, -2, 6, 10, 0, 0, Math.PI * 2);
         ctx.fill();
-        ctx.shadowBlur = 0;
-
         // Abdomen segments with neon glow
         ctx.fillStyle = e.color;
-        ctx.shadowColor = e.color;
-        ctx.shadowBlur = 6;
         for (let i = 0; i < 4; i++) {
             ctx.fillRect(-4, -6 + i * 5, 8, 3);
         }
-        ctx.shadowBlur = 0;
-
         // Metallic sheen on body
         const bodySheen = ctx.createLinearGradient(-6, -12, 6, 12);
         bodySheen.addColorStop(0, 'rgba(255,255,255,0.25)');
@@ -1631,20 +1575,15 @@
         // Compound eyes (large, glowing magenta/pink like concept art)
         for (let side = -1; side <= 1; side += 2) {
             ctx.fillStyle = C.magenta;
-            ctx.shadowColor = C.magenta;
-            ctx.shadowBlur = 10;
             ctx.beginPath();
             ctx.arc(side * 5, -15, 4, 0, Math.PI * 2);
             ctx.fill();
             // Eye highlight
             ctx.fillStyle = C.magentaBright;
-            ctx.shadowBlur = 0;
             ctx.beginPath();
             ctx.arc(side * 4.5, -16, 1.5, 0, Math.PI * 2);
             ctx.fill();
         }
-        ctx.shadowBlur = 0;
-
         // Antennae
         ctx.strokeStyle = C.green;
         ctx.lineWidth = 1;
@@ -1663,9 +1602,6 @@
             ctx.save();
             ctx.globalAlpha = 0.7;
             ctx.fillStyle = flash ? C.white : e.color;
-            ctx.shadowColor = e.color;
-            ctx.shadowBlur = 15;
-
             // Upper wing lobe
             ctx.beginPath();
             ctx.moveTo(0, -8);
@@ -1688,8 +1624,6 @@
             ctx.quadraticCurveTo(side * 15, 16, 0, 8);
             ctx.closePath();
             ctx.fill();
-
-            ctx.shadowBlur = 0;
             ctx.restore();
         }
         ctx.globalAlpha = 1;
@@ -1702,23 +1636,16 @@
 
         // Body neon segments
         ctx.fillStyle = C.magenta;
-        ctx.shadowColor = C.magenta;
-        ctx.shadowBlur = 5;
         ctx.fillRect(-4, -6, 8, 2.5);
         ctx.fillRect(-3, 0, 6, 2.5);
         ctx.fillRect(-3, 6, 6, 2.5);
-        ctx.shadowBlur = 0;
-
         // Eyes
         ctx.fillStyle = C.gold;
-        ctx.shadowColor = C.gold;
-        ctx.shadowBlur = 12;
         ctx.beginPath();
         ctx.arc(-5, -10, 4, 0, Math.PI * 2);
         ctx.arc(5, -10, 4, 0, Math.PI * 2);
         ctx.fill();
         ctx.fillStyle = C.goldBright;
-        ctx.shadowBlur = 0;
         ctx.beginPath();
         ctx.arc(-5, -11, 1.5, 0, Math.PI * 2);
         ctx.arc(5, -11, 1.5, 0, Math.PI * 2);
@@ -1748,8 +1675,6 @@
             ctx.rotate(side * (0.4 + armSwing * side));
             ctx.strokeStyle = C.chrome;
             ctx.lineWidth = 3;
-            ctx.shadowColor = C.purple;
-            ctx.shadowBlur = 6;
             ctx.beginPath();
             ctx.moveTo(side * 14, -8);
             ctx.lineTo(side * 28, -22);
@@ -1762,14 +1687,11 @@
             ctx.moveTo(side * 28, -22);
             ctx.lineTo(side * 32, -10);
             ctx.stroke();
-            ctx.shadowBlur = 0;
             ctx.restore();
         }
 
         // Body
         ctx.fillStyle = flash ? C.white : C.chrome;
-        ctx.shadowColor = C.purple;
-        ctx.shadowBlur = 12;
         ctx.beginPath();
         ctx.moveTo(0, -26);
         ctx.lineTo(-14, -12);
@@ -1780,8 +1702,6 @@
         ctx.lineTo(14, -12);
         ctx.closePath();
         ctx.fill();
-        ctx.shadowBlur = 0;
-
         // Chrome highlight
         const mantisSheen = ctx.createLinearGradient(-17, -26, 17, 22);
         mantisSheen.addColorStop(0, 'rgba(255,255,255,0.4)');
@@ -1802,13 +1722,9 @@
 
         // Purple armor plates
         ctx.fillStyle = C.purple;
-        ctx.shadowColor = C.purple;
-        ctx.shadowBlur = 4;
         ctx.fillRect(-12, -10, 24, 4);
         ctx.fillRect(-10, 2, 20, 4);
         ctx.fillRect(-8, 14, 16, 3);
-        ctx.shadowBlur = 0;
-
         // Head
         ctx.fillStyle = C.chrome;
         ctx.beginPath();
@@ -1816,14 +1732,11 @@
         ctx.fill();
         // Eyes
         ctx.fillStyle = C.cyan;
-        ctx.shadowColor = C.cyan;
-        ctx.shadowBlur = 12;
         ctx.beginPath();
         ctx.arc(-5, -24, 4, 0, Math.PI * 2);
         ctx.arc(5, -24, 4, 0, Math.PI * 2);
         ctx.fill();
         ctx.fillStyle = C.cyanBright;
-        ctx.shadowBlur = 0;
         ctx.beginPath();
         ctx.arc(-5, -25, 1.5, 0, Math.PI * 2);
         ctx.arc(5, -25, 1.5, 0, Math.PI * 2);
@@ -1870,8 +1783,6 @@
 
             // Primary wing
             ctx.fillStyle = `hsla(${wingHue + side * 40}, 100%, 55%, 0.4)`;
-            ctx.shadowColor = `hsl(${wingHue + side * 40}, 100%, 50%)`;
-            ctx.shadowBlur = 18;
             ctx.beginPath();
             ctx.moveTo(-5 * side, -18);
             ctx.quadraticCurveTo(side * 52 * wingSpread, -40, side * 40 * wingSpread, 12);
@@ -1882,16 +1793,12 @@
             // Wing iridescent overlay
             ctx.fillStyle = `hsla(${wingHue + 120 + side * 60}, 100%, 65%, 0.2)`;
             ctx.fill();
-
-            ctx.shadowBlur = 0;
             ctx.restore();
         }
         ctx.globalAlpha = 1;
 
         // Main body
         ctx.fillStyle = flash ? C.white : '#2a1a00';
-        ctx.shadowColor = C.gold;
-        ctx.shadowBlur = 14;
         ctx.beginPath();
         ctx.moveTo(0, -44);
         ctx.lineTo(-20, -22);
@@ -1904,18 +1811,12 @@
         ctx.lineTo(20, -22);
         ctx.closePath();
         ctx.fill();
-        ctx.shadowBlur = 0;
-
         // Gold armor plates
         ctx.fillStyle = C.gold;
-        ctx.shadowColor = C.gold;
-        ctx.shadowBlur = 5;
         ctx.fillRect(-18, -20, 36, 5);
         ctx.fillRect(-16, -6, 32, 4);
         ctx.fillRect(-14, 8, 28, 4);
         ctx.fillRect(-12, 22, 24, 4);
-        ctx.shadowBlur = 0;
-
         // Chrome sheen
         const queenSheen = ctx.createLinearGradient(-24, -44, 24, 38);
         queenSheen.addColorStop(0, 'rgba(255,255,255,0.3)');
@@ -1938,8 +1839,6 @@
 
         // Energy core
         ctx.fillStyle = C.magenta;
-        ctx.shadowColor = C.magenta;
-        ctx.shadowBlur = 18;
         ctx.beginPath();
         ctx.arc(0, 2, 10 + pulse * 3, 0, Math.PI * 2);
         ctx.fill();
@@ -1949,12 +1848,8 @@
         ctx.arc(0, 0, 5 + pulse * 1, 0, Math.PI * 2);
         ctx.fill();
         ctx.globalAlpha = 1;
-        ctx.shadowBlur = 0;
-
         // Crown
         ctx.fillStyle = C.gold;
-        ctx.shadowColor = C.gold;
-        ctx.shadowBlur = 8;
         ctx.beginPath();
         ctx.moveTo(-14, -42);
         ctx.lineTo(-10, -54);
@@ -1965,39 +1860,28 @@
         ctx.lineTo(14, -42);
         ctx.closePath();
         ctx.fill();
-        ctx.shadowBlur = 0;
-
         // Crown jewels
         ctx.fillStyle = C.cyan;
-        ctx.shadowColor = C.cyan;
-        ctx.shadowBlur = 8;
         ctx.beginPath();
         ctx.arc(0, -52, 3, 0, Math.PI * 2);
         ctx.fill();
         ctx.fillStyle = C.magenta;
-        ctx.shadowColor = C.magenta;
-        ctx.beginPath();
+                ctx.beginPath();
         ctx.arc(-7, -48, 2, 0, Math.PI * 2);
         ctx.arc(7, -48, 2, 0, Math.PI * 2);
         ctx.fill();
-        ctx.shadowBlur = 0;
-
         // Three eyes
         ctx.fillStyle = C.red;
-        ctx.shadowColor = C.red;
-        ctx.shadowBlur = 12;
         ctx.beginPath();
         ctx.arc(-9, -34, 4.5, 0, Math.PI * 2);
         ctx.arc(9, -34, 4.5, 0, Math.PI * 2);
         ctx.fill();
         ctx.fillStyle = C.cyan;
-        ctx.shadowColor = C.cyan;
-        ctx.beginPath();
+                ctx.beginPath();
         ctx.arc(0, -38, 5.5, 0, Math.PI * 2);
         ctx.fill();
         // Eye highlights
         ctx.fillStyle = C.white;
-        ctx.shadowBlur = 0;
         ctx.beginPath();
         ctx.arc(-9, -35, 1.8, 0, Math.PI * 2);
         ctx.arc(9, -35, 1.8, 0, Math.PI * 2);
@@ -2022,11 +1906,7 @@
         ctx.strokeRect(-barW / 2, -68, barW, 7);
         const hpColor = hpPercent > 0.5 ? C.green : hpPercent > 0.25 ? C.gold : C.red;
         ctx.fillStyle = hpColor;
-        ctx.shadowColor = hpColor;
-        ctx.shadowBlur = 6;
         ctx.fillRect(-barW / 2 + 1, -67, (barW - 2) * hpPercent, 5);
-        ctx.shadowBlur = 0;
-
         // Outline
         ctx.strokeStyle = '#0a0500';
         ctx.lineWidth = 2;
@@ -2055,8 +1935,6 @@
         for (const b of bullets) {
             // Outer glow
             ctx.fillStyle = b.color;
-            ctx.shadowColor = b.color;
-            ctx.shadowBlur = 12;
             ctx.globalAlpha = 0.4;
             ctx.beginPath();
             ctx.ellipse(b.x, b.y, b.size * 1.8, b.size * 2.5, 0, 0, Math.PI * 2);
@@ -2080,8 +1958,6 @@
             // Outer glow
             ctx.globalAlpha = 0.15;
             ctx.fillStyle = C.purple;
-            ctx.shadowColor = C.purple;
-            ctx.shadowBlur = 40;
             ctx.fillRect(player.x - beamW * 1.5, 0, beamW * 3, player.y - player.height / 2);
             // Inner beam
             ctx.globalAlpha = 0.6;
@@ -2096,15 +1972,12 @@
             ctx.fillStyle = beamGrad;
             ctx.fillRect(player.x - beamW, 0, beamW * 2, player.y - player.height / 2);
             ctx.globalAlpha = 1;
-            ctx.shadowBlur = 0;
         }
 
         // ─── Enemy bullets (glowing orbs like concept art) ───
         for (const b of enemyBullets) {
             // Outer glow
             ctx.fillStyle = b.glowColor || b.color;
-            ctx.shadowColor = b.color;
-            ctx.shadowBlur = 10;
             ctx.globalAlpha = 0.35;
             ctx.beginPath();
             ctx.arc(b.x, b.y, b.size * 2, 0, Math.PI * 2);
@@ -2125,7 +1998,6 @@
 
         ctx.globalAlpha = 1;
         ctx.globalCompositeOperation = 'source-over';
-        ctx.shadowBlur = 0;
     }
 
     function drawParticles() {
@@ -2148,8 +2020,6 @@
                 ctx.globalAlpha = e.alpha;
                 ctx.strokeStyle = e.color || C.gold;
                 ctx.lineWidth = 3;
-                ctx.shadowColor = e.color || C.gold;
-                ctx.shadowBlur = 12;
                 ctx.beginPath();
                 ctx.arc(e.x, e.y, e.radius, 0, Math.PI * 2);
                 ctx.stroke();
@@ -2172,7 +2042,6 @@
         }
         ctx.globalAlpha = 1;
         ctx.globalCompositeOperation = 'source-over';
-        ctx.shadowBlur = 0;
     }
 
     function drawLensFlares() {
@@ -2206,14 +2075,11 @@
 
             ctx.globalAlpha = 0.3 + Math.sin(globalTime * 0.12) * 0.15;
             ctx.fillStyle = p.color;
-            ctx.shadowColor = p.color;
-            ctx.shadowBlur = 18;
             ctx.beginPath();
             ctx.arc(0, 0, p.radius + 5, 0, Math.PI * 2);
             ctx.fill();
 
             ctx.globalAlpha = 1;
-            ctx.shadowBlur = 10;
             ctx.fillStyle = p.color;
             switch (p.type) {
                 case 'spread': ctx.beginPath(); ctx.moveTo(0, -9); ctx.lineTo(-9, 5); ctx.lineTo(-3, 3); ctx.lineTo(-3, 9); ctx.lineTo(3, 9); ctx.lineTo(3, 3); ctx.lineTo(9, 5); ctx.closePath(); ctx.fill(); break;
@@ -2222,7 +2088,6 @@
                 case 'bomb': ctx.beginPath(); ctx.arc(0, 0, 7, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = '#000'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(-4, -4); ctx.lineTo(4, 4); ctx.moveTo(4, -4); ctx.lineTo(-4, 4); ctx.stroke(); break;
                 case 'speed': ctx.beginPath(); ctx.moveTo(0, -9); ctx.lineTo(-7, 0); ctx.lineTo(-2, 0); ctx.lineTo(-4, 9); ctx.lineTo(7, 0); ctx.lineTo(2, 0); ctx.closePath(); ctx.fill(); break;
             }
-            ctx.shadowBlur = 0;
             ctx.restore();
         }
     }
@@ -2232,12 +2097,9 @@
             const alpha = t.life / t.maxLife;
             ctx.globalAlpha = alpha;
             ctx.fillStyle = t.color;
-            ctx.shadowColor = t.color;
-            ctx.shadowBlur = 8;
             ctx.font = 'bold 16px "Orbitron"';
             ctx.textAlign = 'center';
             ctx.fillText(t.text, t.x, t.y);
-            ctx.shadowBlur = 0;
         }
         ctx.globalAlpha = 1;
     }
@@ -2248,12 +2110,8 @@
 
     function drawHUD() {
         ctx.save();
-        ctx.shadowBlur = 0;
-
         // Score
         ctx.fillStyle = C.cyan;
-        ctx.shadowColor = C.cyan;
-        ctx.shadowBlur = 4;
         ctx.font = 'bold 18px "Orbitron"';
         ctx.textAlign = 'left';
         ctx.fillText('SCORE:', 20, 32);
@@ -2262,38 +2120,27 @@
 
         // High Score
         ctx.fillStyle = '#888';
-        ctx.shadowBlur = 0;
         ctx.font = '13px "Share Tech Mono"';
         ctx.fillText(`HI-SCORE: ${highScore.toLocaleString()}`, 20, 78);
 
         // Wave
         ctx.fillStyle = C.gold;
-        ctx.shadowColor = C.gold;
-        ctx.shadowBlur = 4;
         ctx.font = '15px "Orbitron"';
         ctx.textAlign = 'center';
         ctx.fillText(`WAVE ${wave}`, canvas.width / 2, 30);
-        ctx.shadowBlur = 0;
-
         // Lives (ship icons like concept art)
         ctx.textAlign = 'right';
         ctx.fillStyle = C.red;
-        ctx.shadowColor = C.red;
-        ctx.shadowBlur = 4;
         ctx.font = 'bold 16px "Orbitron"';
         ctx.fillText('LIVES:', canvas.width - 25 - player.lives * 28, 32);
-        ctx.shadowBlur = 0;
         for (let i = 0; i < player.lives; i++) drawMiniShip(canvas.width - 20 - i * 28, 28);
 
         // Shield bar
         if (player.shield > 0) {
             ctx.fillStyle = C.gold;
-            ctx.shadowColor = C.gold;
-            ctx.shadowBlur = 4;
             ctx.font = '14px "Orbitron"';
             ctx.textAlign = 'right';
             ctx.fillText(`SHIELD: [${'█'.repeat(player.shield)}${'░'.repeat(3 - player.shield)}]`, canvas.width - 20, 58);
-            ctx.shadowBlur = 0;
         }
 
         // Bottom HUD
@@ -2332,13 +2179,10 @@
         ctx.closePath();
         ctx.fill();
         ctx.fillStyle = C.cyan;
-        ctx.shadowColor = C.cyan;
-        ctx.shadowBlur = 4;
         ctx.beginPath();
         ctx.arc(0, -3, 2, 0, Math.PI * 2);
         ctx.fill();
         ctx.fillStyle = C.red;
-        ctx.shadowBlur = 0;
         ctx.fillRect(-2, 1, 4, 3);
         ctx.restore();
     }
@@ -2362,19 +2206,13 @@
         ctx.textAlign = 'center';
         // GALAXY
         ctx.fillStyle = C.cyan;
-        ctx.shadowColor = C.cyan;
-        ctx.shadowBlur = 25 + pulse * 8;
         ctx.font = 'bold 60px "Orbitron"';
         ctx.fillText('GALAXY', canvas.width / 2, titleY);
 
         // STORM
         ctx.fillStyle = C.magenta;
-        ctx.shadowColor = C.magenta;
-        ctx.shadowBlur = 25 + pulse * 8;
         ctx.font = 'bold 72px "Orbitron"';
         ctx.fillText('STORM', canvas.width / 2, titleY + 65);
-        ctx.shadowBlur = 0;
-
         // Subtitle
         ctx.fillStyle = C.gold;
         ctx.font = '13px "Orbitron"';
@@ -2396,12 +2234,9 @@
         // Start prompt
         if (Math.floor(globalTime * 0.04) % 2 === 0) {
             ctx.fillStyle = C.white;
-            ctx.shadowColor = C.white;
-            ctx.shadowBlur = 10;
             ctx.font = 'bold 22px "Orbitron"';
             ctx.textAlign = 'center';
             ctx.fillText('▶  PRESS ENTER TO START  ◀', canvas.width / 2, canvas.height * 0.62);
-            ctx.shadowBlur = 0;
         }
 
         // High score
@@ -2436,11 +2271,7 @@
         ctx.globalAlpha = 1;
 
         ctx.fillStyle = C.white;
-        ctx.shadowColor = C.white;
-        ctx.shadowBlur = 12;
         ctx.fillText('GAME OVER', canvas.width / 2, canvas.height * 0.32);
-        ctx.shadowBlur = 0;
-
         ctx.fillStyle = C.gold;
         ctx.font = 'bold 22px "Orbitron"';
         ctx.fillText(`FINAL SCORE: ${score.toLocaleString()}`, canvas.width / 2, canvas.height * 0.43);
@@ -2451,11 +2282,8 @@
 
         if (score >= highScore && score > 0) {
             ctx.fillStyle = C.magenta;
-            ctx.shadowColor = C.magenta;
-            ctx.shadowBlur = 12;
             ctx.font = 'bold 20px "Orbitron"';
             ctx.fillText('★ NEW HIGH SCORE ★', canvas.width / 2, canvas.height * 0.57);
-            ctx.shadowBlur = 0;
         } else {
             ctx.fillStyle = '#777';
             ctx.font = '14px "Share Tech Mono"';
@@ -2464,11 +2292,8 @@
 
         if (Math.floor(globalTime * 0.04) % 2 === 0) {
             ctx.fillStyle = C.white;
-            ctx.shadowColor = C.white;
-            ctx.shadowBlur = 8;
             ctx.font = 'bold 20px "Orbitron"';
             ctx.fillText('PRESS ENTER TO RESTART', canvas.width / 2, canvas.height * 0.68);
-            ctx.shadowBlur = 0;
         }
     }
 
@@ -2485,8 +2310,6 @@
         ctx.fillRect(0, canvas.height * 0.35, canvas.width, 90);
 
         ctx.fillStyle = C.cyan;
-        ctx.shadowColor = C.cyan;
-        ctx.shadowBlur = 18;
         ctx.font = `bold ${40 * scale}px "Orbitron"`;
         ctx.fillText(`WAVE ${wave}`, canvas.width / 2, canvas.height * 0.4 + 22);
 
@@ -2497,11 +2320,9 @@
         else if (effectiveWave >= 8) subtitle = '— BOMBING RUN —';
         if (subtitle) {
             ctx.fillStyle = C.magenta;
-            ctx.shadowColor = C.magenta;
-            ctx.font = `${18 * scale}px "Orbitron"`;
+                        ctx.font = `${18 * scale}px "Orbitron"`;
             ctx.fillText(subtitle, canvas.width / 2, canvas.height * 0.4 + 55);
         }
-        ctx.shadowBlur = 0;
         ctx.restore();
     }
 
@@ -2511,16 +2332,11 @@
         ctx.textAlign = 'center';
         if (flash) { ctx.fillStyle = 'rgba(255, 0, 0, 0.1)'; ctx.fillRect(0, 0, canvas.width, canvas.height); }
         ctx.fillStyle = flash ? C.red : C.gold;
-        ctx.shadowColor = C.red;
-        ctx.shadowBlur = 25;
         ctx.font = 'bold 46px "Orbitron"';
         ctx.fillText('⚠ WARNING ⚠', canvas.width / 2, canvas.height * 0.34);
         ctx.fillStyle = C.gold;
-        ctx.shadowColor = C.gold;
-        ctx.shadowBlur = 12;
         ctx.font = 'bold 24px "Orbitron"';
         ctx.fillText('QUEEN HIVEMIND APPROACHING', canvas.width / 2, canvas.height * 0.43);
-        ctx.shadowBlur = 0;
         ctx.restore();
     }
 
@@ -2529,12 +2345,9 @@
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.textAlign = 'center';
         ctx.fillStyle = C.cyan;
-        ctx.shadowColor = C.cyan;
-        ctx.shadowBlur = 18;
         ctx.font = 'bold 48px "Orbitron"';
         ctx.fillText('PAUSED', canvas.width / 2, canvas.height / 2 - 20);
         ctx.fillStyle = '#888';
-        ctx.shadowBlur = 0;
         ctx.font = '16px "Share Tech Mono"';
         ctx.fillText('PRESS P TO RESUME', canvas.width / 2, canvas.height / 2 + 30);
     }
@@ -2551,9 +2364,25 @@
     // MAIN GAME LOOP
     // ═══════════════════════════════════════════════════════════
 
+    const TARGET_FPS = 60;
+    const FRAME_TIME = 1000 / TARGET_FPS;
+    let accumulator = 0;
+
     function gameLoop(timestamp) {
+        if (!lastFrameTime) lastFrameTime = timestamp;
         deltaTime = timestamp - lastFrameTime;
         lastFrameTime = timestamp;
+
+        // Frame rate limiter - skip if too fast
+        accumulator += deltaTime;
+        if (accumulator < FRAME_TIME * 0.9) {
+            requestAnimationFrame(gameLoop);
+            return;
+        }
+        // Normalize delta time: 1.0 = perfect 60fps frame
+        dt = Math.min(accumulator / FRAME_TIME, 3); // cap at 3x to avoid spiral
+        accumulator = 0;
+
         globalTime++;
         frameCount++;
 
@@ -2578,6 +2407,10 @@
                 updateLensFlares();
                 updatePowerups();
                 updateTextPopups();
+
+                // Build spatial grid for collision
+                gridClear();
+                for (let i = 0; i < enemies.length; i++) gridInsert(enemies[i]);
                 checkCollisions();
 
                 if (waveSpawned && enemies.length === 0 && gameState === STATE.PLAYING) {
