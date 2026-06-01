@@ -2,8 +2,10 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="description" content="GALAXY STORM - A retro-futuristic space shooter with neon visuals, biomechanical alien armada, and bullet hell action">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
     <title>GALAXY STORM | Retro-Futuristic Space Shooter</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -11,6 +13,38 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
+    <!-- Sidebar hints for desktop letterbox mode -->
+    <div id="sidebar-left" class="sidebar-hints">
+        <div class="sidebar-title">MOVEMENT</div>
+        <div class="key-diagram">
+            <div class="key-row"><span class="key">W</span></div>
+            <div class="key-row"><span class="key">A</span><span class="key">S</span><span class="key">D</span></div>
+        </div>
+        <div class="sidebar-sep">── or ──</div>
+        <div class="key-diagram">
+            <div class="key-row"><span class="key">↑</span></div>
+            <div class="key-row"><span class="key">←</span><span class="key">↓</span><span class="key">→</span></div>
+        </div>
+        <div class="sidebar-note">Smooth diagonal movement</div>
+    </div>
+
+    <div id="sidebar-right" class="sidebar-hints">
+        <div class="sidebar-title">ACTIONS</div>
+        <div class="key-list">
+            <div><span class="key wide">SPACE</span> / <span class="key">Z</span> Shoot</div>
+            <div><span class="key">X</span> / <span class="key wide">SHIFT</span> Bomb</div>
+            <div><span class="key">P</span> / <span class="key wide">ESC</span> Pause</div>
+            <div><span class="key">M</span> Music</div>
+            <div><span class="key">F</span> Auto-fire</div>
+        </div>
+        <div class="sidebar-sep">──────</div>
+        <div class="sidebar-title" style="margin-top:6px;">MOUSE</div>
+        <div class="key-list">
+            <div>🖱 Click = Shoot</div>
+            <div>🖱 Hold = Auto-fire</div>
+        </div>
+    </div>
+
     <div id="game-container">
         <!-- Layered canvases: background renders separately for performance -->
         <canvas id="bgCanvas"></canvas>
@@ -22,6 +56,16 @@
             <source src="bgm.ogg" type="audio/ogg">
             <source src="bgm.wav" type="audio/wav">
         </audio>
+
+        <!-- Touch controls (mobile only, shown via CSS) -->
+        <div id="touch-controls">
+            <div id="joystick-zone">
+                <div id="joystick-base"></div>
+                <div id="joystick-thumb"></div>
+            </div>
+            <div id="fire-btn">FIRE</div>
+            <div id="bomb-btn">BOMB</div>
+        </div>
     </div>
     <script src="game.js"></script>
 </body>

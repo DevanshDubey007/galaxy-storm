@@ -24,17 +24,35 @@ html, body {
     overflow: hidden;
     background: #000;
     font-family: 'Orbitron', sans-serif;
+    touch-action: none;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
 }
 
+/* ═══════════════════════════════════════════ */
+/* GAME CONTAINER                            */
+/* ═══════════════════════════════════════════ */
 #game-container {
-    position: relative;
-    width: 100vw;
-    height: 100vh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    position: absolute;
     background: var(--deep-space);
     overflow: hidden;
+}
+
+/* ── Desktop: Letterbox centered 9:16, 95vh max ── */
+body.mode-desktop #game-container {
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    /* height & width set by JS for precise 9:16 */
+}
+
+/* ── Mobile: Fill entire screen ── */
+body.mode-mobile #game-container {
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
 }
 
 /* Layered canvas system */
@@ -48,20 +66,16 @@ html, body {
     image-rendering: crisp-edges;
 }
 
-#bgCanvas {
-    z-index: 1;
-}
+#bgCanvas { z-index: 1; }
+#gameCanvas { z-index: 2; }
 
-#gameCanvas {
-    z-index: 2;
-}
-
+/* ═══════════════════════════════════════════ */
+/* SCANLINES & VIGNETTE                      */
+/* ═══════════════════════════════════════════ */
 #scanlines {
     position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
     pointer-events: none;
     z-index: 10;
     background: repeating-linear-gradient(
@@ -81,10 +95,8 @@ html, body {
 
 #vignette {
     position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
     pointer-events: none;
     z-index: 11;
     background: radial-gradient(
@@ -95,13 +107,11 @@ html, body {
     );
 }
 
+/* Neon border on game container */
 #game-container::before {
     content: '';
     position: absolute;
-    top: -2px;
-    left: -2px;
-    right: -2px;
-    bottom: -2px;
+    top: -2px; left: -2px; right: -2px; bottom: -2px;
     z-index: 12;
     pointer-events: none;
     border: 2px solid var(--neon-cyan);
@@ -127,18 +137,206 @@ html, body {
     }
 }
 
-#gameCanvas.playing {
-    cursor: none;
+#gameCanvas.playing { cursor: none; }
+
+/* ═══════════════════════════════════════════ */
+/* SIDEBAR CONTROL HINTS (Desktop Letterbox) */
+/* ═══════════════════════════════════════════ */
+.sidebar-hints {
+    position: fixed;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 5;
+    pointer-events: none;
+    font-family: 'Share Tech Mono', monospace;
+    color: rgba(0, 255, 255, 0.3);
+    text-align: center;
+    transition: opacity 0.4s;
+    display: none; /* shown by JS in desktop mode */
+}
+#sidebar-left { left: 24px; }
+#sidebar-right { right: 24px; }
+
+.sidebar-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    color: rgba(0, 255, 255, 0.35);
+    text-shadow: 0 0 8px rgba(0, 255, 255, 0.1);
+    margin-bottom: 14px;
+}
+.sidebar-sep {
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.12);
+    margin: 10px 0;
+}
+.sidebar-note {
+    font-size: 9px;
+    color: rgba(255, 215, 0, 0.25);
+    margin-top: 12px;
+    font-style: italic;
 }
 
-@media (max-width: 768px) {
-    #scanlines {
-        background: repeating-linear-gradient(
-            0deg,
-            transparent,
-            transparent 1px,
-            rgba(0, 0, 0, 0.06) 1px,
-            rgba(0, 0, 0, 0.06) 2px
-        );
-    }
+/* Key cap styling */
+.key {
+    display: inline-block;
+    min-width: 26px;
+    padding: 3px 6px;
+    margin: 2px;
+    font-size: 11px;
+    font-family: 'Share Tech Mono', monospace;
+    color: rgba(255, 215, 0, 0.5);
+    border: 1px solid rgba(255, 215, 0, 0.2);
+    border-radius: 4px;
+    background: rgba(255, 215, 0, 0.04);
+    text-align: center;
+    box-shadow: 0 0 4px rgba(255, 215, 0, 0.06);
+}
+.key.wide { min-width: 46px; }
+
+.key-diagram {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    margin: 6px 0;
+}
+.key-row {
+    display: flex;
+    gap: 2px;
+}
+
+.key-list {
+    text-align: left;
+    font-size: 10px;
+    line-height: 2.2;
+    color: rgba(0, 255, 255, 0.28);
+}
+
+/* Subtle scanline effect on the body background (sidebars) */
+body.mode-desktop::after {
+    content: '';
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+    z-index: 1;
+    background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 3px,
+        rgba(0, 255, 255, 0.008) 3px,
+        rgba(0, 255, 255, 0.008) 6px
+    );
+}
+
+/* ═══════════════════════════════════════════ */
+/* VIRTUAL TOUCH CONTROLS (Mobile only)      */
+/* ═══════════════════════════════════════════ */
+#touch-controls {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    z-index: 15;
+    pointer-events: none;
+    display: none;
+}
+body.mode-mobile #touch-controls { display: block; }
+
+/* Joystick area (bottom-left) */
+#joystick-zone {
+    position: absolute;
+    bottom: 20px; left: 20px;
+    width: 140px; height: 140px;
+    pointer-events: auto;
+    touch-action: none;
+}
+#joystick-base {
+    position: absolute;
+    top: 0; left: 0;
+    width: 140px; height: 140px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(0,255,255,0.08) 0%, rgba(0,255,255,0.03) 60%, transparent 100%);
+    border: 2px solid rgba(0,255,255,0.2);
+    box-shadow: 0 0 15px rgba(0,255,255,0.08), inset 0 0 15px rgba(0,255,255,0.04);
+}
+#joystick-thumb {
+    position: absolute;
+    width: 50px; height: 50px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(0,255,255,0.35) 0%, rgba(0,255,255,0.12) 100%);
+    border: 2px solid rgba(0,255,255,0.5);
+    box-shadow: 0 0 12px rgba(0,255,255,0.25);
+    top: 45px; left: 45px;
+    transition: box-shadow 0.15s;
+}
+#joystick-thumb.active {
+    box-shadow: 0 0 20px rgba(0,255,255,0.5);
+    border-color: rgba(0,255,255,0.8);
+}
+
+/* Fire button (bottom-right) */
+#fire-btn {
+    position: absolute;
+    bottom: 40px; right: 30px;
+    width: 80px; height: 80px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255,0,144,0.25) 0%, rgba(255,0,144,0.08) 100%);
+    border: 2px solid rgba(255,0,144,0.4);
+    box-shadow: 0 0 15px rgba(255,0,144,0.15);
+    pointer-events: auto;
+    touch-action: none;
+    display: flex;
+    align-items: center; justify-content: center;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 11px; font-weight: 700;
+    color: rgba(255,0,144,0.7);
+    letter-spacing: 1px;
+    text-shadow: 0 0 8px rgba(255,0,144,0.3);
+    transition: all 0.1s;
+}
+#fire-btn.active {
+    background: radial-gradient(circle, rgba(255,0,144,0.45) 0%, rgba(255,0,144,0.15) 100%);
+    border-color: rgba(255,0,144,0.8);
+    box-shadow: 0 0 25px rgba(255,0,144,0.35);
+    transform: scale(0.93);
+}
+
+/* Bomb button (above fire) */
+#bomb-btn {
+    position: absolute;
+    bottom: 140px; right: 40px;
+    width: 56px; height: 56px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255,215,0,0.2) 0%, rgba(255,215,0,0.06) 100%);
+    border: 2px solid rgba(255,215,0,0.35);
+    box-shadow: 0 0 12px rgba(255,215,0,0.1);
+    pointer-events: auto;
+    touch-action: none;
+    display: flex;
+    align-items: center; justify-content: center;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 9px; font-weight: 700;
+    color: rgba(255,215,0,0.6);
+    letter-spacing: 1px;
+    text-shadow: 0 0 6px rgba(255,215,0,0.2);
+    transition: all 0.1s;
+}
+#bomb-btn.active {
+    background: radial-gradient(circle, rgba(255,215,0,0.4) 0%, rgba(255,215,0,0.12) 100%);
+    border-color: rgba(255,215,0,0.75);
+    box-shadow: 0 0 20px rgba(255,215,0,0.3);
+    transform: scale(0.93);
+}
+
+/* Mobile scanline lighter */
+body.mode-mobile #scanlines {
+    background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 1px,
+        rgba(0, 0, 0, 0.06) 1px,
+        rgba(0, 0, 0, 0.06) 2px
+    );
 }

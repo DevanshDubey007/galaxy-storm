@@ -41,9 +41,49 @@
     // ── Performance: Frame timing ──
     let bgFrameCounter = 0; // Only update background every N frames
 
+    // ── Responsive Layout: Desktop Letterbox vs Mobile Fullscreen ──
+    const container = document.getElementById('game-container');
+    const sidebarL = document.getElementById('sidebar-left');
+    const sidebarR = document.getElementById('sidebar-right');
+    let isMobile = false;
+
+    function detectMode() {
+        const isPortrait = window.innerWidth <= window.innerHeight;
+        const isSmallScreen = window.innerWidth <= 768;
+        isMobile = isPortrait || isSmallScreen;
+
+        document.body.classList.toggle('mode-mobile', isMobile);
+        document.body.classList.toggle('mode-desktop', !isMobile);
+
+        if (sidebarL) sidebarL.style.display = isMobile ? 'none' : 'block';
+        if (sidebarR) sidebarR.style.display = isMobile ? 'none' : 'block';
+    }
+
     function resizeCanvas() {
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
+        detectMode();
+
+        if (isMobile) {
+            // Mobile: fill entire screen
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            container.style.width = '100vw';
+            container.style.height = '100vh';
+        } else {
+            // Desktop: 9:16 letterbox, max 95vh
+            const maxH = Math.floor(window.innerHeight * 0.95);
+            const h = maxH;
+            const w = Math.floor(h * (9 / 16));
+            canvas.width = w;
+            canvas.height = h;
+            container.style.width = w + 'px';
+            container.style.height = h + 'px';
+
+            // Position sidebar hints in the black bars
+            const barWidth = (window.innerWidth - w) / 2;
+            if (sidebarL) sidebarL.style.left = Math.max(8, (barWidth - 120) / 2) + 'px';
+            if (sidebarR) sidebarR.style.right = Math.max(8, (barWidth - 120) / 2) + 'px';
+        }
+
         bgCanvas.width = canvas.width;
         bgCanvas.height = canvas.height;
         renderStaticBackground();
@@ -98,19 +138,130 @@
     // ── Input ──
     const keys = {};
     let autoFire = true; // auto-fire ON by default like concept art
+    let mouseDown = false;
+    let touchJoystickX = 0, touchJoystickY = 0; // -1..1 range
+    let touchFiring = false;
+
     window.addEventListener('keydown', e => {
         keys[e.code] = true;
         if (e.code === 'Enter') {
             if (gameState === STATE.MENU || gameState === STATE.GAMEOVER) startGame();
         }
-        if (e.code === 'KeyP' && gameState === STATE.PLAYING) { gameState = STATE.PAUSED; pauseMusic(); }
-        else if (e.code === 'KeyP' && gameState === STATE.PAUSED) { gameState = STATE.PLAYING; resumeMusic(); }
+        // Pause: P or Escape
+        if ((e.code === 'KeyP' || e.code === 'Escape') && gameState === STATE.PLAYING) { gameState = STATE.PAUSED; pauseMusic(); }
+        else if ((e.code === 'KeyP' || e.code === 'Escape') && gameState === STATE.PAUSED) { gameState = STATE.PLAYING; resumeMusic(); }
         if (e.code === 'KeyF') autoFire = !autoFire;
-        if (e.code === 'KeyX' && gameState === STATE.PLAYING) useBomb();
+        // Bomb: X or Shift
+        if ((e.code === 'KeyX' || e.code === 'ShiftLeft' || e.code === 'ShiftRight') && gameState === STATE.PLAYING) useBomb();
         if (e.code === 'KeyM') toggleMusic();
         e.preventDefault();
     });
     window.addEventListener('keyup', e => { keys[e.code] = false; });
+
+    // ── Mouse click/hold to shoot ──
+    canvas.addEventListener('mousedown', e => { mouseDown = true; e.preventDefault(); });
+    canvas.addEventListener('mouseup', () => { mouseDown = false; });
+    canvas.addEventListener('mouseleave', () => { mouseDown = false; });
+    // Tap on canvas to start game (works on menu/gameover)
+    canvas.addEventListener('click', () => {
+        if (gameState === STATE.MENU || gameState === STATE.GAMEOVER) startGame();
+    });
+
+    // ── Pause on tab switch, resume on focus ──
+    window.addEventListener('blur', () => {
+        if (gameState === STATE.PLAYING) { gameState = STATE.PAUSED; pauseMusic(); }
+    });
+    window.addEventListener('focus', () => {
+        // Don't auto-resume — player must press P/Escape to resume
+    });
+
+    // ── Touch Controls ──
+    let joystickTouchId = null;
+    const joystickZone = document.getElementById('joystick-zone');
+    const joystickThumb = document.getElementById('joystick-thumb');
+    const fireBtn = document.getElementById('fire-btn');
+    const bombBtn = document.getElementById('bomb-btn');
+
+    if (joystickZone) {
+        const baseRadius = 70; // half of 140px base
+        const maxDist = 45;
+
+        joystickZone.addEventListener('touchstart', e => {
+            e.preventDefault();
+            const touch = e.changedTouches[0];
+            joystickTouchId = touch.identifier;
+            updateJoystick(touch);
+            if (joystickThumb) joystickThumb.classList.add('active');
+            // Tap anywhere on screen to start game
+            if (gameState === STATE.MENU || gameState === STATE.GAMEOVER) startGame();
+        }, { passive: false });
+
+        joystickZone.addEventListener('touchmove', e => {
+            e.preventDefault();
+            for (const touch of e.changedTouches) {
+                if (touch.identifier === joystickTouchId) updateJoystick(touch);
+            }
+        }, { passive: false });
+
+        const endJoystick = e => {
+            for (const touch of e.changedTouches) {
+                if (touch.identifier === joystickTouchId) {
+                    joystickTouchId = null;
+                    touchJoystickX = 0;
+                    touchJoystickY = 0;
+                    if (joystickThumb) {
+                        joystickThumb.style.top = '45px';
+                        joystickThumb.style.left = '45px';
+                        joystickThumb.classList.remove('active');
+                    }
+                }
+            }
+        };
+        joystickZone.addEventListener('touchend', endJoystick);
+        joystickZone.addEventListener('touchcancel', endJoystick);
+
+        function updateJoystick(touch) {
+            const rect = joystickZone.getBoundingClientRect();
+            const cx = rect.left + baseRadius;
+            const cy = rect.top + baseRadius;
+            let dx = touch.clientX - cx;
+            let dy = touch.clientY - cy;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist > maxDist) { dx = dx / dist * maxDist; dy = dy / dist * maxDist; }
+            touchJoystickX = dx / maxDist; // -1..1
+            touchJoystickY = dy / maxDist;
+            if (joystickThumb) {
+                joystickThumb.style.left = (45 + dx) + 'px';
+                joystickThumb.style.top = (45 + dy) + 'px';
+            }
+        }
+    }
+
+    if (fireBtn) {
+        fireBtn.addEventListener('touchstart', e => {
+            e.preventDefault();
+            touchFiring = true;
+            fireBtn.classList.add('active');
+            if (gameState === STATE.MENU || gameState === STATE.GAMEOVER) startGame();
+        }, { passive: false });
+        fireBtn.addEventListener('touchend', e => { e.preventDefault(); touchFiring = false; fireBtn.classList.remove('active'); });
+        fireBtn.addEventListener('touchcancel', () => { touchFiring = false; fireBtn.classList.remove('active'); });
+    }
+
+    if (bombBtn) {
+        bombBtn.addEventListener('touchstart', e => {
+            e.preventDefault();
+            bombBtn.classList.add('active');
+            if (gameState === STATE.PLAYING) useBomb();
+        }, { passive: false });
+        bombBtn.addEventListener('touchend', e => { e.preventDefault(); bombBtn.classList.remove('active'); });
+        bombBtn.addEventListener('touchcancel', () => { bombBtn.classList.remove('active'); });
+    }
+
+    // Generic touch-to-start for the canvas area
+    canvas.addEventListener('touchstart', e => {
+        if (gameState === STATE.MENU || gameState === STATE.GAMEOVER) { e.preventDefault(); startGame(); }
+    }, { passive: false });
 
     // ── Background Music ──
     const bgMusic = document.getElementById('bgMusic');
@@ -651,10 +802,17 @@
         const accel = 0.65;
         const friction = 0.87;
 
+        // Keyboard movement
         if (keys['ArrowLeft'] || keys['KeyA']) player.vx -= accel;
         if (keys['ArrowRight'] || keys['KeyD']) player.vx += accel;
         if (keys['ArrowUp'] || keys['KeyW']) player.vy -= accel;
         if (keys['ArrowDown'] || keys['KeyS']) player.vy += accel;
+
+        // Touch joystick movement (same speed as keyboard)
+        if (touchJoystickX !== 0 || touchJoystickY !== 0) {
+            player.vx += touchJoystickX * accel * 1.5;
+            player.vy += touchJoystickY * accel * 1.5;
+        }
 
         player.vx *= friction;
         player.vy *= friction;
@@ -667,8 +825,9 @@
         player.y = Math.max(canvas.height * 0.25, Math.min(canvas.height - player.height / 2 - 10, player.y));
 
         if (player.shootCooldown > 0) player.shootCooldown--;
-        if (keys['Space'] || autoFire) playerShoot();
-        if (!keys['Space'] && !autoFire) player.beamActive = false;
+        // Shoot: Space, Z, mouse click, touch fire, or auto-fire
+        if (keys['Space'] || keys['KeyZ'] || mouseDown || touchFiring || autoFire) playerShoot();
+        if (!keys['Space'] && !keys['KeyZ'] && !mouseDown && !touchFiring && !autoFire) player.beamActive = false;
 
         if (player.invincible) { player.invincibleTimer--; if (player.invincibleTimer <= 0) player.invincible = false; }
         if (player.speedBoost > 0) player.speedBoost--;
@@ -2270,7 +2429,7 @@
             ctx.fillStyle = C.white;
             ctx.font = 'bold 22px "Orbitron"';
             ctx.textAlign = 'center';
-            ctx.fillText('▶  PRESS ENTER TO START  ◀', canvas.width / 2, canvas.height * 0.62);
+            ctx.fillText(isMobile ? '▶  TAP TO START  ◀' : '▶  PRESS ENTER TO START  ◀', canvas.width / 2, canvas.height * 0.62);
         }
 
         // High score
@@ -2278,12 +2437,13 @@
         ctx.font = '15px "Share Tech Mono"';
         ctx.fillText(`HIGH SCORE: ${highScore.toLocaleString()}`, canvas.width / 2, canvas.height * 0.7);
 
-        // Controls
+        // Controls (only show in-canvas on mobile; desktop has sidebar hints)
         ctx.fillStyle = '#555';
         ctx.font = '12px "Share Tech Mono"';
-        ctx.fillText('ARROWS / WASD — MOVE', canvas.width / 2, canvas.height * 0.8);
-        ctx.fillText('SPACE — FIRE  |  F — AUTO-FIRE  |  X — BOMB', canvas.width / 2, canvas.height * 0.8 + 22);
-        ctx.fillText('P — PAUSE  |  M — TOGGLE MUSIC', canvas.width / 2, canvas.height * 0.8 + 44);
+        if (isMobile) {
+            ctx.fillText('USE JOYSTICK TO MOVE', canvas.width / 2, canvas.height * 0.8);
+            ctx.fillText('FIRE BUTTON TO SHOOT  |  BOMB BUTTON FOR BOMB', canvas.width / 2, canvas.height * 0.8 + 22);
+        }
     }
 
     function drawGameOverScreen() {
@@ -2327,7 +2487,7 @@
         if (Math.floor(globalTime * 0.04) % 2 === 0) {
             ctx.fillStyle = C.white;
             ctx.font = 'bold 20px "Orbitron"';
-            ctx.fillText('PRESS ENTER TO RESTART', canvas.width / 2, canvas.height * 0.68);
+            ctx.fillText(isMobile ? 'TAP TO RESTART' : 'PRESS ENTER TO RESTART', canvas.width / 2, canvas.height * 0.68);
         }
     }
 
