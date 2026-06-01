@@ -69,8 +69,8 @@
             container.style.width = '100vw';
             container.style.height = '100vh';
         } else {
-            // Desktop: 9:16 letterbox, max 95vh
-            const maxH = Math.floor(window.innerHeight * 0.95);
+            // Desktop: 9:16 letterbox, max 92vh for clean window fit
+            const maxH = Math.floor(window.innerHeight * 0.92);
             const h = maxH;
             const w = Math.floor(h * (9 / 16));
             canvas.width = w;
